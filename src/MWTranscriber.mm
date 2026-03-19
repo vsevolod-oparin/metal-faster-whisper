@@ -92,6 +92,40 @@ NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
 
 @end
 
+// ── MWWord ────────────────────────────────────────────────────────────────────
+
+@implementation MWWord {
+    NSString *_word;
+    float _start;
+    float _end;
+    float _probability;
+}
+
+- (instancetype)initWithWord:(NSString *)word
+                       start:(float)start
+                         end:(float)end
+                 probability:(float)probability {
+    self = [super init];
+    if (!self) return nil;
+    _word = [word retain];
+    _start = start;
+    _end = end;
+    _probability = probability;
+    return self;
+}
+
+- (NSString *)word { return _word; }
+- (float)start { return _start; }
+- (float)end { return _end; }
+- (float)probability { return _probability; }
+
+- (void)dealloc {
+    [_word release];
+    [super dealloc];
+}
+
+@end
+
 // ── MWTranscriptionSegment ────────────────────────────────────────────────────
 
 @implementation MWTranscriptionSegment {
@@ -105,6 +139,7 @@ NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
     float _avgLogProb;
     float _compressionRatio;
     float _noSpeechProb;
+    NSArray<MWWord *> *_words;
 }
 
 - (instancetype)initWithSegmentId:(NSUInteger)segmentId
@@ -116,7 +151,8 @@ NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
                       temperature:(float)temperature
                        avgLogProb:(float)avgLogProb
                  compressionRatio:(float)compressionRatio
-                    noSpeechProb:(float)noSpeechProb {
+                    noSpeechProb:(float)noSpeechProb
+                            words:(NSArray<MWWord *> *)words {
     self = [super init];
     if (!self) return nil;
     _segmentId = segmentId;
@@ -129,6 +165,7 @@ NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
     _avgLogProb = avgLogProb;
     _compressionRatio = compressionRatio;
     _noSpeechProb = noSpeechProb;
+    _words = [words retain];
     return self;
 }
 
@@ -142,10 +179,12 @@ NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
 - (float)avgLogProb { return _avgLogProb; }
 - (float)compressionRatio { return _compressionRatio; }
 - (float)noSpeechProb { return _noSpeechProb; }
+- (NSArray<MWWord *> *)words { return _words; }
 
 - (void)dealloc {
     [_text release];
     [_tokens release];
+    [_words release];
     [super dealloc];
 }
 
@@ -253,6 +292,7 @@ static NSDictionary *loadJSONFromPath(NSString *path, NSError **error) {
 
 @implementation MWTranscriber {
     std::unique_ptr<ctranslate2::models::Whisper> _whisper;
+    std::unique_ptr<ctranslate2::models::Whisper> _whisperCPU;  // CPU pool for align()
 
     NSString *_modelPath;
     MWFeatureExtractor *_featureExtractor;
@@ -1246,6 +1286,436 @@ static NSData *sliceMel(NSData *fullMel, NSUInteger nMels, NSUInteger totalFrame
     return slice;
 }
 
+// ── Word-Level Timestamp: findAlignment ──────────────────────────────────────
+
+/// Find word-level alignment for text tokens using cross-attention DTW.
+/// Returns an array of alignment dictionaries per batch element.
+/// Each alignment dict has keys: word (NSString*), tokens (NSArray<NSNumber*>*),
+/// start (float), end (float), probability (float).
+- (NSArray<NSArray<NSDictionary *> *> *)findAlignmentWithTokenizer:(MWTokenizer *)tokenizer
+                                                        textTokens:(NSArray<NSArray<NSNumber *> *> *)textTokensBatch
+                                                     encoderOutput:(NSData *)encoderOutput
+                                                         numFrames:(NSUInteger)numFrames
+                                                medianFilterWidth:(NSUInteger)medianFilterWidth {
+    try {
+        // Build CT2 StorageView for encoder output.
+        NSUInteger encodedElements = [encoderOutput length] / sizeof(float);
+        NSUInteger dModel = encodedElements / 1500;
+        float *encPtr = const_cast<float *>((const float *)[encoderOutput bytes]);
+        ctranslate2::StorageView encView(
+            {1, 1500, (ctranslate2::dim_t)dModel},
+            encPtr,
+            ctranslate2::Device::CPU
+        );
+
+        // Build start_sequence from tokenizer's sotSequence.
+        std::vector<size_t> startSeq;
+        for (NSNumber *tok in tokenizer.sotSequence) {
+            startSeq.push_back([tok unsignedLongValue]);
+        }
+
+        NSMutableArray<NSArray<NSDictionary *> *> *returnList = [[NSMutableArray alloc] init];
+
+        // Call align one at a time since the pool derives batch_size from features.dim(0)=1.
+        for (NSUInteger batchIdx = 0; batchIdx < [textTokensBatch count]; batchIdx++) {
+            NSArray<NSNumber *> *textToks = textTokensBatch[batchIdx];
+
+            // Skip empty token sequences.
+            if ([textToks count] == 0) {
+                [returnList addObject:@[]];
+                continue;
+            }
+
+            // Build text_tokens for this single element.
+            std::vector<size_t> toks;
+            for (NSNumber *tok in textToks) {
+                toks.push_back([tok unsignedLongValue]);
+            }
+            std::vector<std::vector<size_t>> textTokensVec = {toks};
+            std::vector<size_t> numFramesVec = {numFrames};
+
+            // Call CT2 align on CPU to avoid MPS LayerNorm limitations
+            // with non-iterative decoder execution.
+            if (!_whisperCPU) {
+                const std::string path = [_modelPath UTF8String];
+                _whisperCPU = std::make_unique<ctranslate2::models::Whisper>(
+                    path,
+                    ctranslate2::Device::CPU,
+                    ctranslate2::ComputeType::FLOAT32,
+                    std::vector<int>{0},
+                    false
+                );
+            }
+
+            auto futures = _whisperCPU->align(encView, startSeq, textTokensVec, numFramesVec,
+                                              (ctranslate2::dim_t)medianFilterWidth);
+
+            if (futures.empty()) {
+                [returnList addObject:@[]];
+                continue;
+            }
+
+            auto result = futures[0].get();
+
+            const auto& alignments = result.alignments;
+            const auto& textTokenProbs = result.text_token_probs;
+
+            if (alignments.empty()) {
+                [returnList addObject:@[]];
+                continue;
+            }
+
+            // Extract text_indices and time_indices.
+            std::vector<int64_t> textIndices(alignments.size());
+            std::vector<int64_t> timeIndices(alignments.size());
+            for (size_t ai = 0; ai < alignments.size(); ai++) {
+                textIndices[ai] = alignments[ai].first;
+                timeIndices[ai] = alignments[ai].second;
+            }
+
+            // Split to word tokens: text_tokens + [eot].
+            NSMutableArray<NSNumber *> *tokensWithEOT = [NSMutableArray arrayWithArray:textToks];
+            [tokensWithEOT addObject:@(tokenizer.eot)];
+
+            NSArray<NSString *> *words = nil;
+            NSArray<NSArray<NSNumber *> *> *wordTokens = nil;
+            [tokenizer splitToWordTokens:tokensWithEOT words:&words wordTokens:&wordTokens];
+
+            if (!words || [words count] <= 1) {
+                [returnList addObject:@[]];
+                continue;
+            }
+
+            // Compute word boundaries from cumulative token lengths.
+            // word_boundaries = np.pad(np.cumsum([len(t) for t in word_tokens[:-1]]), (1, 0))
+            NSUInteger numWords = [wordTokens count];
+            std::vector<NSUInteger> wordBoundaries(numWords, 0);
+            // wordBoundaries[0] = 0 (from np.pad (1,0))
+            NSUInteger cumLen = 0;
+            for (NSUInteger wi = 0; wi + 1 < numWords; wi++) {
+                cumLen += [wordTokens[wi] count];
+                wordBoundaries[wi + 1] = cumLen;
+            }
+
+            if (wordBoundaries.size() <= 1) {
+                [returnList addObject:@[]];
+                continue;
+            }
+
+            // Compute jumps: where text_index changes.
+            // jumps = np.pad(np.diff(text_indices), (1, 0), constant_values=1).astype(bool)
+            std::vector<bool> jumps(textIndices.size(), false);
+            jumps[0] = true;  // constant_values=1 → true
+            for (size_t ji = 1; ji < textIndices.size(); ji++) {
+                jumps[ji] = (textIndices[ji] != textIndices[ji - 1]);
+            }
+
+            // jump_times = time_indices[jumps] / tokens_per_second
+            std::vector<float> jumpTimes;
+            for (size_t ji = 0; ji < jumps.size(); ji++) {
+                if (jumps[ji]) {
+                    jumpTimes.push_back((float)timeIndices[ji] / (float)_tokensPerSecond);
+                }
+            }
+
+            // Extract start/end times and probabilities per word.
+            NSMutableArray<NSDictionary *> *wordList = [[NSMutableArray alloc] init];
+
+            for (NSUInteger wi = 0; wi + 1 < numWords; wi++) {
+                NSUInteger startBound = wordBoundaries[wi];
+                NSUInteger endBound = wordBoundaries[wi + 1];
+
+                float startTime = 0.0f;
+                float endTime = 0.0f;
+                if (startBound < jumpTimes.size()) {
+                    startTime = jumpTimes[startBound];
+                }
+                if (endBound < jumpTimes.size()) {
+                    endTime = jumpTimes[endBound];
+                } else if (!jumpTimes.empty()) {
+                    endTime = jumpTimes.back();
+                }
+
+                // word probability = mean(text_token_probs[startBound:endBound])
+                float probSum = 0.0f;
+                NSUInteger probCount = 0;
+                for (NSUInteger pi = startBound; pi < endBound && pi < textTokenProbs.size(); pi++) {
+                    probSum += textTokenProbs[pi];
+                    probCount++;
+                }
+                float wordProb = (probCount > 0) ? (probSum / (float)probCount) : 0.0f;
+
+                NSDictionary *wordDict = @{
+                    @"word": words[wi],
+                    @"tokens": wordTokens[wi],
+                    @"start": @(startTime),
+                    @"end": @(endTime),
+                    @"probability": @(wordProb)
+                };
+                [wordList addObject:wordDict];
+            }
+
+            [returnList addObject:[[wordList copy] autorelease]];
+            [wordList release];
+        }
+
+        NSArray<NSArray<NSDictionary *> *> *result = [[returnList copy] autorelease];
+        [returnList release];
+        return result;
+
+    } catch (const std::exception& e) {
+        NSLog(@"[MetalWhisper] findAlignment failed: %s", e.what());
+        return @[];
+    } catch (...) {
+        NSLog(@"[MetalWhisper] findAlignment failed: unknown exception");
+        return @[];
+    }
+}
+
+/// Add word-level timestamps to segments.
+/// segmentGroups: array of segment groups, each group is an array of segment dicts.
+/// Each segment dict has keys: start, end, tokens (including timestamps).
+/// Returns the last speech timestamp for seek update.
+- (float)addWordTimestampsToSegments:(NSMutableArray<MWTranscriptionSegment *> *)segments
+                         fromIndex:(NSUInteger)fromIndex
+                     encoderOutput:(NSData *)encoderOutput
+                         numFrames:(NSUInteger)numFrames
+                         tokenizer:(MWTokenizer *)tokenizer
+               prependPunctuations:(NSString *)prepend
+                appendPunctuations:(NSString *)append
+                        timeOffset:(float)timeOffset
+                      segmentDuration:(float)segDuration {
+    if (!segments || [segments count] <= fromIndex) return 0.0f;
+
+    // Collect text tokens from each segment (filter out timestamp tokens).
+    NSUInteger tsBegin = tokenizer.timestampBegin;
+    NSUInteger eot = tokenizer.eot;
+    NSMutableArray<NSArray<NSNumber *> *> *textTokensBatch = [[NSMutableArray alloc] init];
+
+    for (NSUInteger si = fromIndex; si < [segments count]; si++) {
+        MWTranscriptionSegment *seg = segments[si];
+        NSMutableArray<NSNumber *> *textToks = [[NSMutableArray alloc] init];
+        for (NSNumber *tok in seg.tokens) {
+            NSUInteger t = [tok unsignedIntegerValue];
+            if (t < tsBegin && t != eot) {
+                [textToks addObject:tok];
+            }
+        }
+        [textTokensBatch addObject:textToks];
+        [textToks release];
+    }
+
+    // Call findAlignment.
+    NSArray<NSArray<NSDictionary *> *> *alignments =
+        [self findAlignmentWithTokenizer:tokenizer
+                              textTokens:textTokensBatch
+                           encoderOutput:encoderOutput
+                               numFrames:numFrames
+                        medianFilterWidth:7];
+    [textTokensBatch release];
+
+    if (!alignments || [alignments count] == 0) return 0.0f;
+
+    float lastSpeechTimestamp = 0.0f;
+
+    // Process each segment's alignment.
+    for (NSUInteger ai = 0; ai < [alignments count]; ai++) {
+        NSUInteger segIdx = fromIndex + ai;
+        if (segIdx >= [segments count]) break;
+
+        NSArray<NSDictionary *> *alignment = alignments[ai];
+        if ([alignment count] == 0) continue;
+
+        MWTranscriptionSegment *seg = segments[segIdx];
+
+        // Convert to mutable dicts for punctuation merging.
+        NSMutableArray<NSMutableDictionary *> *mutableAlignment = [[NSMutableArray alloc] init];
+        for (NSDictionary *d in alignment) {
+            [mutableAlignment addObject:[d mutableCopy]];
+        }
+
+        // Merge punctuations.
+        mergePunctuations(mutableAlignment, prepend, append);
+
+        // Build MWWord array, offsetting times by segment start.
+        NSMutableArray<MWWord *> *words = [[NSMutableArray alloc] init];
+        for (NSMutableDictionary *wd in mutableAlignment) {
+            NSString *wordStr = wd[@"word"];
+            if ([wordStr length] == 0) continue;  // Skip merged-away entries.
+
+            float wStart = [wd[@"start"] floatValue] + timeOffset;
+            float wEnd = [wd[@"end"] floatValue] + timeOffset;
+            float wProb = [wd[@"probability"] floatValue];
+
+            // Clamp word times to segment boundaries.
+            if (wStart < seg.start) wStart = seg.start;
+            if (wEnd > seg.end) wEnd = seg.end;
+            if (wStart > wEnd) wStart = wEnd;
+
+            MWWord *word = [[MWWord alloc] initWithWord:wordStr
+                                                  start:wStart
+                                                    end:wEnd
+                                            probability:wProb];
+            [words addObject:word];
+            [word release];
+
+            if (wEnd > lastSpeechTimestamp) {
+                lastSpeechTimestamp = wEnd;
+            }
+        }
+
+        // Replace the segment with a new one that includes words.
+        MWTranscriptionSegment *newSeg = [[MWTranscriptionSegment alloc]
+            initWithSegmentId:seg.segmentId
+                         seek:seg.seek
+                        start:seg.start
+                          end:seg.end
+                         text:seg.text
+                       tokens:seg.tokens
+                  temperature:seg.temperature
+                   avgLogProb:seg.avgLogProb
+             compressionRatio:seg.compressionRatio
+                noSpeechProb:seg.noSpeechProb
+                        words:words];
+        [segments replaceObjectAtIndex:segIdx withObject:newSeg];
+        [newSeg release];
+
+        [words release];
+        for (NSMutableDictionary *d in mutableAlignment) {
+            [d release];
+        }
+        [mutableAlignment release];
+    }
+
+    return lastSpeechTimestamp;
+}
+
+// ── Word-Level Timestamps ────────────────────────────────────────────────────
+
+/// Compute anomaly score for a word based on probability and duration.
+/// Python: word_anomaly_score in faster_whisper/transcribe.py lines 1242-1250.
+static float wordAnomalyScore(float probability, float duration) {
+    float score = 0.0f;
+    if (probability < 0.15f) {
+        score += 1.0f;
+    }
+    if (duration < 0.133f) {
+        score += (0.133f - duration) * 15.0f;
+    }
+    if (duration > 2.0f) {
+        score += (duration - 2.0f);
+    }
+    return score;
+}
+
+/// Check if a segment's words indicate an anomaly (hallucination).
+/// Python: is_segment_anomaly in faster_whisper/transcribe.py.
+static BOOL isSegmentAnomaly(NSArray<MWWord *> *words) {
+    if (!words || [words count] == 0) return NO;
+
+    // Compute per-word anomaly scores for first 8 non-punctuation words.
+    float totalScore = 0.0f;
+    NSUInteger wordCount = 0;
+    for (MWWord *w in words) {
+        NSString *stripped = [w.word stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if ([stripped length] == 0) continue;
+
+        // Check if it's punctuation-only.
+        NSCharacterSet *letters = [NSCharacterSet letterCharacterSet];
+        BOOL hasLetter = NO;
+        for (NSUInteger i = 0; i < [stripped length]; i++) {
+            if ([letters characterIsMember:[stripped characterAtIndex:i]]) {
+                hasLetter = YES;
+                break;
+            }
+        }
+        if (!hasLetter) continue;
+
+        float dur = w.end - w.start;
+        totalScore += wordAnomalyScore(w.probability, dur);
+        wordCount++;
+        if (wordCount >= 8) break;
+    }
+
+    if (wordCount == 0) return NO;
+    return (totalScore >= 3.0f) || (totalScore + 0.01f >= (float)wordCount);
+}
+
+/// Merge punctuation marks into adjacent words.
+/// Prepended punctuations (like opening quotes) merge right-to-left into following word.
+/// Appended punctuations (like commas, periods) merge left-to-right into previous word.
+static void mergePunctuations(NSMutableArray<NSMutableDictionary *> *alignment,
+                              NSString *prepended, NSString *appended) {
+    if (!alignment || [alignment count] == 0) return;
+
+    // Build character sets for quick lookup.
+    NSMutableSet<NSString *> *prependSet = [[NSMutableSet alloc] init];
+    for (NSUInteger i = 0; i < [prepended length]; i++) {
+        [prependSet addObject:[NSString stringWithFormat:@"%C", [prepended characterAtIndex:i]]];
+    }
+
+    // Merge prepended punctuations (right to left).
+    NSInteger i = (NSInteger)[alignment count] - 2;
+    NSInteger j = (NSInteger)[alignment count] - 1;
+    while (i >= 0) {
+        NSMutableDictionary *previous = alignment[(NSUInteger)i];
+        NSMutableDictionary *following = alignment[(NSUInteger)j];
+        NSString *prevWord = previous[@"word"];
+        NSString *stripped = [prevWord stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceCharacterSet]];
+        if ([prevWord hasPrefix:@" "] && [stripped length] > 0 && [prependSet containsObject:stripped]) {
+            following[@"word"] = [prevWord stringByAppendingString:following[@"word"]];
+            NSMutableArray *mergedTokens = [NSMutableArray arrayWithArray:previous[@"tokens"]];
+            [mergedTokens addObjectsFromArray:following[@"tokens"]];
+            following[@"tokens"] = mergedTokens;
+            previous[@"word"] = @"";
+            previous[@"tokens"] = [NSMutableArray array];
+        } else {
+            j = i;
+        }
+        i--;
+    }
+    [prependSet release];
+
+    // Merge appended punctuations (left to right).
+    i = 0;
+    j = 1;
+    while (j < (NSInteger)[alignment count]) {
+        NSMutableDictionary *previous = alignment[(NSUInteger)i];
+        NSMutableDictionary *following = alignment[(NSUInteger)j];
+        NSString *prevWord = previous[@"word"];
+        NSString *followWord = following[@"word"];
+        // Check if previous doesn't end with space and following is in appended set.
+        if (![prevWord hasSuffix:@" "] && [prevWord length] > 0) {
+            // Check if followWord is a single appended punctuation character.
+            BOOL isAppended = NO;
+            if ([followWord length] > 0) {
+                for (NSUInteger k = 0; k < [appended length]; k++) {
+                    NSString *ch = [NSString stringWithFormat:@"%C", [appended characterAtIndex:k]];
+                    if ([followWord isEqualToString:ch]) {
+                        isAppended = YES;
+                        break;
+                    }
+                }
+            }
+            if (isAppended) {
+                previous[@"word"] = [prevWord stringByAppendingString:followWord];
+                NSMutableArray *mergedTokens = [NSMutableArray arrayWithArray:previous[@"tokens"]];
+                [mergedTokens addObjectsFromArray:following[@"tokens"]];
+                previous[@"tokens"] = mergedTokens;
+                following[@"word"] = @"";
+                following[@"tokens"] = [NSMutableArray array];
+            } else {
+                i = j;
+            }
+        } else {
+            i = j;
+        }
+        j++;
+    }
+}
+
 // ── Transcription ────────────────────────────────────────────────────────────
 
 /// Helper to read an option from the dictionary with a default value.
@@ -1332,6 +1802,23 @@ static NSString *optString(NSDictionary *opts, NSString *key) {
     NSString *initialPrompt = optString(options, @"initialPrompt");
     NSString *prefix = optString(options, @"prefix");
     NSString *hotwords = optString(options, @"hotwords");
+    BOOL wordTimestamps = optBool(options, @"wordTimestamps", NO);
+    float hallucinationSilenceThreshold = optFloat(options, @"hallucinationSilenceThreshold", 0.0f);
+    NSString *prependPunctuations = optString(options, @"prependPunctuations");
+    if (!prependPunctuations) {
+        // "'"¿([{-
+        unichar prependChars[] = {'"', '\'', 0x201C, 0xBF, '(', '[', '{', '-'};
+        prependPunctuations = [NSString stringWithCharacters:prependChars
+                                                      length:sizeof(prependChars)/sizeof(unichar)];
+    }
+    NSString *appendPunctuations = optString(options, @"appendPunctuations");
+    if (!appendPunctuations) {
+        // "'.。,，!！?？:：")]}、
+        unichar appendChars[] = {'"', '\'', '.', 0x3002, ',', 0xFF0C, '!', 0xFF01,
+                                 '?', 0xFF1F, ':', 0xFF1A, 0x201D, ')', ']', '}', 0x3001};
+        appendPunctuations = [NSString stringWithCharacters:appendChars
+                                                     length:sizeof(appendChars)/sizeof(unichar)];
+    }
 
     NSArray<NSNumber *> *temperatures = options[@"temperatures"];
     if (!temperatures || ![temperatures isKindOfClass:[NSArray class]] || [temperatures count] == 0) {
@@ -1582,18 +2069,45 @@ static NSString *optString(NSDictionary *opts, NSString *key) {
                           temperature:result.temperature
                            avgLogProb:result.avgLogProb
                      compressionRatio:result.compressionRatio
-                        noSpeechProb:result.noSpeechProb];
+                        noSpeechProb:result.noSpeechProb
+                                words:nil];
 
                 [segments addObject:transSeg];
-
-                if (segmentHandler) {
-                    BOOL stop = NO;
-                    segmentHandler(transSeg, &stop);
-                    if (stop) stopped = YES;
-                }
-
                 [transSeg release];
                 segmentIndex++;
+            }
+
+            // ── Word timestamps ──────────────────────────────────────────
+            if (wordTimestamps && [splitSegs count] > 0) {
+                NSUInteger wordSegStart = segmentIndex - [splitSegs count];
+                [self addWordTimestampsToSegments:segments
+                                        fromIndex:wordSegStart
+                                    encoderOutput:encoderOutput
+                                        numFrames:MIN(framesAvailable, segmentSize)
+                                        tokenizer:loopTokenizer
+                              prependPunctuations:prependPunctuations
+                               appendPunctuations:appendPunctuations
+                                       timeOffset:timeOffset
+                                  segmentDuration:segmentDuration];
+
+                // Hallucination silence threshold handling.
+                if (hallucinationSilenceThreshold > 0.0f) {
+                    for (NSUInteger si = wordSegStart; si < [segments count]; si++) {
+                        MWTranscriptionSegment *s = segments[si];
+                        if (s.words && isSegmentAnomaly(s.words)) {
+                            NSLog(@"[MetalWhisper] Anomalous segment detected: %@", s.text);
+                        }
+                    }
+                }
+            }
+
+            // Call segment handler for newly added segments.
+            for (NSUInteger si = segmentIndex - [splitSegs count]; si < segmentIndex && !stopped; si++) {
+                if (segmentHandler) {
+                    BOOL stop = NO;
+                    segmentHandler(segments[si], &stop);
+                    if (stop) stopped = YES;
+                }
             }
 
             // i) Update allTokens and handle prompt reset.
@@ -1667,6 +2181,7 @@ static NSString *optString(NSDictionary *opts, NSString *key) {
 // ── Manual memory management (no ARC) ───────────────────────────────────────
 
 - (void)dealloc {
+    _whisperCPU.reset();
     _whisper.reset();
     [_modelPath release];
     [_featureExtractor release];

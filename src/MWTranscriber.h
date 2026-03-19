@@ -6,6 +6,20 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// A single word with timing and probability from word-level timestamps.
+@interface MWWord : NSObject
+@property (nonatomic, readonly) NSString *word;
+@property (nonatomic, readonly) float start;
+@property (nonatomic, readonly) float end;
+@property (nonatomic, readonly) float probability;
+
+- (instancetype)initWithWord:(NSString *)word
+                       start:(float)start
+                         end:(float)end
+                 probability:(float)probability;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
 /// A transcription segment with timing, text, and decode metadata.
 @interface MWTranscriptionSegment : NSObject
 @property (nonatomic, readonly) NSUInteger segmentId;
@@ -18,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) float avgLogProb;
 @property (nonatomic, readonly) float compressionRatio;
 @property (nonatomic, readonly) float noSpeechProb;
+@property (nonatomic, readonly, nullable) NSArray<MWWord *> *words;
 
 - (instancetype)initWithSegmentId:(NSUInteger)segmentId
                              seek:(NSUInteger)seek
@@ -28,7 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
                       temperature:(float)temperature
                        avgLogProb:(float)avgLogProb
                  compressionRatio:(float)compressionRatio
-                    noSpeechProb:(float)noSpeechProb;
+                    noSpeechProb:(float)noSpeechProb
+                            words:(nullable NSArray<MWWord *> *)words;
 - (instancetype)init NS_UNAVAILABLE;
 @end
 
