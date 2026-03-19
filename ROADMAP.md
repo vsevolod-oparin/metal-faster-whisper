@@ -168,15 +168,15 @@ Native Objective-C++ port of [faster-whisper](https://github.com/SYSTRAN/faster-
 **Alternative approach:** CTranslate2's `Vocabulary` class already provides `to_token(id)` and `to_id(token)`. For decoding (id→string), use `Vocabulary` directly. Only BPE encoding (text→ids) needs porting — needed for `initial_prompt` and `hotwords`.
 
 **Tests:**
-- [ ] `test_m3_load_vocab`: Load tokenizer.json from whisper-tiny, verify vocab size
-- [ ] `test_m3_encode`: Encode "Hello, world!" — compare token IDs against Python `tokenizer.encode()`
-- [ ] `test_m3_decode`: Decode known token sequence — compare text against Python
-- [ ] `test_m3_special_tokens`: Verify sot, eot, no_timestamps IDs match Python for tiny, base, large-v3, turbo
-- [ ] `test_m3_sot_sequence`: Multilingual sot_sequence for English transcribe matches Python
-- [ ] `test_m3_non_speech_tokens`: Compare suppression token set against Python for large-v3
-- [ ] `test_m3_word_split_english`: "Hello, world!" split matches Python
-- [ ] `test_m3_word_split_cjk`: Japanese/Chinese character-level split matches Python
-- [ ] `test_m3_roundtrip`: encode → decode roundtrip for 100 diverse sentences
+- [x] `test_m3_load_vocab`: Load tokenizer.json from large-v3-turbo, vocab size = 51866
+- [x] `test_m3_encode`: 10 test strings (English, CJK, Cyrillic, accented) — token IDs match Python exactly
+- [x] `test_m3_decode`: Known token sequences decoded to matching text
+- [x] `test_m3_special_tokens`: sot=50258, eot=50257, noTimestamps=50364, timestampBegin=50365, language tokens — all match Python for turbo. Other models (tiny, base) deferred to M9 when downloaded.
+- [x] `test_m3_sot_sequence`: English transcribe [50258, 50259, 50360] and French translate [50258, 50283, 50359] match Python
+- [x] `test_m3_non_speech_tokens`: 82 suppression tokens match Python exactly
+- [x] `test_m3_word_split_english`: "Hello, world!" → ["Hello", ",", " world", "!"] matches Python
+- [x] `test_m3_word_split_cjk`: "日本語のテスト" → ["日本", "語", "の", "テ", "スト"] matches Python
+- [x] `test_m3_roundtrip`: 10 sentences encode→decode roundtrip, all match Python
 
 **Exit criteria:** Token-identical output vs Python `tokenizers` for all Whisper model sizes.
 
@@ -564,6 +564,7 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 |-----------|-------------|---------------------|--------|-------|
 | Audio decoding | 123 | ~100 | ~235 | AVFoundation + 3 input modes + channel normalization |
 | Mel spectrogram | 230 | ~150 | ~520 | Bluestein FFT needed (vDSP doesn't support length 400) |
+| Tokenizer | 320 | ~250 | ~830 | Full BPE encode/decode + GPT-2 byte mapping + word split |
 | Tokenizer | 320 | ~250 | BPE encode + decode + specials |
 | VAD | 385 | ~300 | Core ML replaces ONNX |
 | Transcribe (decode loop) | 1,941 | ~1,400 | Includes translate, best_of, error handling, prompt reset |

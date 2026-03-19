@@ -96,6 +96,7 @@ install(FILES
     src/MWAudioDecoder.h
     src/MWFeatureExtractor.h
     src/MWConstants.h
+    src/MWTokenizer.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )
 

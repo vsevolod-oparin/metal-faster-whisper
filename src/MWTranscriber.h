@@ -14,6 +14,7 @@ typedef NS_ENUM(NSInteger, MWErrorCode) {
     MWErrorCodeAudioDecodeFailed = 100,
     MWErrorCodeAudioFileNotFound = 101,
     MWErrorCodeAudioTempFileFailed = 102,
+    MWErrorCodeTokenizerLoadFailed = 200,
 };
 
 /// Compute type for model inference.
