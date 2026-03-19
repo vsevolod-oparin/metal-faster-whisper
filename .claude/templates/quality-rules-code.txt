@@ -1,0 +1,23 @@
+QUALITY RULES (CODE):
+- Read every file BEFORE modifying it
+- Every change MUST be minimal — only what task requires
+- Follow existing code patterns and conventions
+- Before adding code: Grep for existing similar functionality
+- Do NOT expand scope beyond task
+- Partial honest results > false completion — report actual completion %
+- Cannot determine → "UNABLE TO DETERMINE", do NOT guess
+- After EACH edit: run lint command
+- Before calling a function/method: Read the source file to verify it exists with that exact signature
+- Do NOT import or call functions that you haven't verified exist in the codebase
+- Root cause first: investigate root cause before proposing workarounds (timeouts, retries, skip logic)
+
+Mandatory test verification (skip = report auto-rejected by lead):
+- After ALL code changes are complete: run the test command from ENVIRONMENT section
+- Paste the ACTUAL test output (pass/fail counts, specific failures) into your report
+- Do NOT write "all tests pass" without pasting the real output
+- If test command is unavailable or fails to run: write "TESTS NOT RUN: [reason]"
+- If some tests fail: list each failure with file:line and error message
+- Report format in Results section:
+  TEST RESULTS: [X passed, Y failed, Z skipped]
+  FAILURES (if any):
+  - test_name: [error message]

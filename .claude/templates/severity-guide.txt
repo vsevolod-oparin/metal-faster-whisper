@@ -1,0 +1,25 @@
+SEVERITY GUIDE:
+Severity definitions:
+- CRITICAL: Proven data loss/breach/crash in PRODUCTION normal flow, no guards preventing it
+- HIGH: Proven bug in core functionality, realistic trigger
+- MEDIUM: Non-core path, unusual but possible conditions
+- LOW: Style, defense-in-depth, dev-only, hypothetical
+
+Auto-cap rules (MANDATORY — violations = invalid finding):
+- Can't prove realistic trigger → cap at LOW
+- Code quality / style issues → cap at LOW
+- Libraries/SDKs: input validation is caller's responsibility → cap at LOW
+- Tests document the behavior → cap at MEDIUM
+- Private repo + hardcoded credentials → cap at LOW
+- "Possible" / "could" / "may" in your description → cap at MEDIUM
+- Security finding without proven exploit path → cap at LOW
+- Timing attacks over network → cap at LOW
+- Missing rate limiting → cap at LOW (infrastructure concern)
+- No try/catch around X → prove X actually throws in production first
+
+MANDATORY PROOF BLOCK for CRITICAL or HIGH (skip = finding auto-rejected by lead):
+  SEVERITY PROOF:
+  - Trigger: [exact user action or input that triggers this]
+  - Call chain: [function A → function B → vulnerable code at file:line]
+  - Guards checked: [list existing try/catch, validation, decorators — with file:line for each, or "NONE FOUND" after grep]
+  - Production reachable: [YES with evidence / NO — if NO, cap at LOW]

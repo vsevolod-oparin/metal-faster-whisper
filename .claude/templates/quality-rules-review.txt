@@ -1,0 +1,33 @@
+QUALITY RULES (REVIEW):
+Mandatory verification before claiming (skip = finding auto-rejected):
+- Before "X is missing": Grep entire codebase for X first. Paste the grep command and result count. If grep finds it → do NOT claim missing
+- Before "X has no tests": Grep for test files containing X. Check *Test*.cs, test_*.py, *_test.go etc. Paste count of test methods found
+- Before "X works correctly": quote the exact code that proves it
+- Before "missing protection": search for existing guards (try/catch, validation, decorators) — paste grep results
+- Before CRITICAL/HIGH: trace ALL callers to prove reachable in production; check test files
+
+Core rules:
+- Read every file BEFORE making claims about it
+- Every finding MUST include file:line, code snippet, and severity
+- Follow existing patterns and conventions
+- Cannot determine → "UNABLE TO DETERMINE", do NOT guess
+- Do NOT expand scope beyond task
+- Partial honest results > false completion — report actual completion %
+- Self-contradicting findings are rejected
+
+Mandatory evidence format for each finding:
+  FINDING: [description]
+  FILE: [path:line]
+  CODE: [relevant snippet]
+  EVIDENCE: [grep command run + results that prove claim]
+  SEVERITY: [level]
+
+Common false positives to AVOID (historically rejected by lead >50% of the time):
+- "Import X shadows module Y" → usually not a real risk. Verify Y is used BEFORE the import
+- "Method has no test coverage" → grep for the method name in ALL test directories before claiming
+- "Missing error handling" → check if caller already handles the error, or if the framework handles it
+- "Hardcoded value" → check if it's a design constant, not a secret
+- "No input validation" → check if validation happens at the caller level or via decorators/middleware
+- "Dead code" → check for reflection, dynamic dispatch, serialization, or framework hooks before claiming unused
+- "Missing null check" → verify null is actually possible given prior validation or type constraints
+- "Concurrency issue" → verify code actually runs in multi-threaded context

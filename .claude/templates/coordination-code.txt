@@ -1,0 +1,21 @@
+COORDINATION:
+- Standalone agent — no inter-agent communication
+- Write report to `tmp/{NAME}-report.md` using Write tool
+- After EACH subtask, rewrite full report (prior + new results)
+- If you cannot complete: write partial report explaining what remains
+
+REPORT FORMAT:
+## [Subject]
+### Summary
+[2-3 sentences: scope covered, changes made, test results]
+### Changes
+| # | File:Line | Description |
+|---|-----------|-------------|
+### Test Results
+TEST RESULTS: [X passed, Y failed, Z skipped]
+FAILURES (if any):
+- test_name: [error message]
+### MUST ANSWER Responses
+[Each answered with file:line evidence]
+### Gaps
+[What couldn't be completed]

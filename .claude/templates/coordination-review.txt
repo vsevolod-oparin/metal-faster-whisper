@@ -1,0 +1,19 @@
+COORDINATION:
+- Standalone agent — no inter-agent communication
+- Write report to `tmp/{NAME}-report.md` using Write tool
+- After EACH subtask, rewrite full report (prior + new results)
+- If you cannot complete: write partial report explaining what remains
+
+REPORT FORMAT:
+## [Subject]
+### Summary
+[2-3 sentences: scope covered, issue counts by severity]
+### Findings
+[ONLY actual issues — do NOT list "no issue found" confirmations here]
+| # | Severity | File:Line | Description |
+|---|----------|-----------|-------------|
+[For each HIGH/CRITICAL, add SEVERITY PROOF block after the table]
+### MUST ANSWER Responses
+[Each answered with file:line evidence. Positive confirmations go HERE, not in Findings]
+### Gaps
+[What couldn't be completed]
