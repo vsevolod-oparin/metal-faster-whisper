@@ -560,10 +560,10 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 
 ## Estimated Line Counts
 
-| Component | Python lines | Obj-C++ lines (est.) | Notes |
-|-----------|-------------|---------------------|-------|
-| Audio decoding | 123 | ~100 | AVFoundation + microphone tap |
-| Mel spectrogram | 230 | ~150 | vDSP replaces numpy |
+| Component | Python lines | Obj-C++ lines (est.) | Actual | Notes |
+|-----------|-------------|---------------------|--------|-------|
+| Audio decoding | 123 | ~100 | ~235 | AVFoundation + 3 input modes + channel normalization |
+| Mel spectrogram | 230 | ~150 | ~520 | Bluestein FFT needed (vDSP doesn't support length 400) |
 | Tokenizer | 320 | ~250 | BPE encode + decode + specials |
 | VAD | 385 | ~300 | Core ML replaces ONNX |
 | Transcribe (decode loop) | 1,941 | ~1,400 | Includes translate, best_of, error handling, prompt reset |
@@ -596,6 +596,70 @@ M1 (audio)  ────┘    M3 (tokenizer)  ────┘   M9 (download) �
 6. **M5** — word timestamps (enables SRT/VTT subtitle export)
 7. **M6, M7** — VAD and batching (performance features)
 8. **M10 + M12** — Swift API and macOS app (for developers building on top of MetalWhisper)
+
+## Benchmarking Strategy
+
+Performance tracking is continuous, not deferred to M11. Every component is benchmarked as it's built, and Python baselines are captured on the same machine for direct comparison.
+
+### Benchmark Infrastructure (`benchmarks/`)
+
+- `benchmarks/run_python_baselines.py` — times faster-whisper's `decode_audio()`, `FeatureExtractor()`, and `WhisperModel.transcribe()` on the standard test files. Produces `benchmarks/python_baselines.json`.
+- `benchmarks/run_native_benchmarks.sh` — runs the MetalWhisper test binaries with `--benchmark` flags, collects timing data. Produces `benchmarks/native_results.json`.
+- `benchmarks/compare.py` — reads both JSON files, prints a comparison table and speedup ratios.
+- `benchmarks/results/` — historical results per milestone, per machine (`{milestone}_{machine}.json`).
+
+### Per-Component Benchmarks (captured as each milestone lands)
+
+| Component | Metric | How | When |
+|-----------|--------|-----|------|
+| Audio decode (M1) | Wall time for 30s WAV, 83-min MP3 | `test_m1_audio --benchmark` | M1 ✅ |
+| Mel spectrogram (M2) | Wall time for 30s audio (n_mels=80, 128) | `test_m2_mel --benchmark` | M2 ✅ |
+| BPE tokenizer (M3) | encode+decode throughput (tokens/sec) | `test_m3_tokenizer --benchmark` | M3 |
+| Encode (M0/M4) | Wall time for `WhisperReplica::encode()` | `test_m0_link --benchmark` | M0 ✅ |
+| Generate (M4) | Wall time for `WhisperReplica::generate()` | `test_m4_generate --benchmark` | M4 |
+| Full transcription (M4) | RTF for 30s, 2min, 1hr audio | `test_m4_e2e --benchmark` | M4 |
+
+### Python Baselines (captured once, re-run on hardware changes)
+
+Run on the same Mac used for native benchmarks. Captures:
+
+| Component | Python function | Test audio |
+|-----------|----------------|------------|
+| Audio decode | `decode_audio()` | physicsworks.wav (203s), large.mp3 (83min) |
+| Mel spectrogram | `FeatureExtractor()(audio_30s)` | 30s chunk from physicsworks |
+| Full transcription | `WhisperModel.transcribe()` | jfk.flac (11s), physicsworks.wav (203s) |
+| Language detection | `WhisperModel.detect_language()` | jfk.flac |
+
+Models benchmarked: tiny, base, large-v3-turbo (f16). Each timed 3 runs, report median.
+
+### Current Results
+
+| Component | MetalWhisper | Python faster-whisper | Speedup | Notes |
+|-----------|-------------|----------------------|---------|-------|
+| Mel spectrogram (30s, 80 mels) | 9.9 ms | TBD | TBD | vDSP/AMX via Bluestein FFT |
+| Audio decode (203s WAV) | ~instant | TBD | TBD | AVFoundation vs PyAV |
+| Audio decode (83min MP3) | ~few sec | TBD | TBD | Chunked streaming |
+| Encode (turbo, f16, 30s silence) | ~2.5s | TBD | TBD | Metal GPU |
+| Full transcription | — | TBD | — | Requires M4 |
+
+### End-to-End RTF Targets (M11)
+
+| Model | Compute type | Target RTF | Notes |
+|-------|-------------|------------|-------|
+| whisper-tiny | f16 | < 0.05 | Should be near-instant |
+| whisper-base | f16 | < 0.10 | |
+| whisper-large-v3 | f16 | < 0.20 | Primary benchmark target |
+| whisper-large-v3-turbo | f16 | < 0.15 | Turbo should beat large-v3 |
+
+RTF = processing time / audio duration. Lower is better. RTF < 1.0 means faster than realtime.
+
+### When to Benchmark
+
+- **Every milestone**: run the component benchmark, update the results table above
+- **After M4**: run full pipeline RTF, capture Python baselines, produce first comparison report
+- **M11**: comprehensive benchmark suite across all models, compute types, and audio durations
+
+---
 
 ## End-to-End Test Plan
 
