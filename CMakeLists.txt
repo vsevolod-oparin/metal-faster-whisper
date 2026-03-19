@@ -23,6 +23,7 @@ find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
 find_library(METAL_FRAMEWORK Metal REQUIRED)
 find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
 find_library(AVFOUNDATION_FRAMEWORK AVFoundation REQUIRED)
+find_library(COMPRESSION_LIB compression REQUIRED)
 
 # ── MetalWhisper shared library ──────────────────────────────────────────────
 file(GLOB MW_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm")
@@ -43,6 +44,7 @@ target_link_libraries(MetalWhisper
         ${METAL_FRAMEWORK}
         ${ACCELERATE_FRAMEWORK}
         ${AVFOUNDATION_FRAMEWORK}
+        ${COMPRESSION_LIB}
 )
 
 # Disable ARC for all Obj-C++ sources (architecture decision #5)
@@ -72,6 +74,7 @@ foreach(test_source ${MW_TESTS})
             ${FOUNDATION_FRAMEWORK}
             ${AVFOUNDATION_FRAMEWORK}
             ${ACCELERATE_FRAMEWORK}
+            ${COMPRESSION_LIB}
     )
     target_compile_options(${test_name} PRIVATE -fno-objc-arc)
     set_target_properties(${test_name} PROPERTIES

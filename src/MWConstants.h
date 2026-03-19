@@ -39,3 +39,14 @@ static const float kMWLogDynamicRange = 8.0f;
 /// Default number of mel spectrogram frames per chunk.
 /// 30 seconds of audio at 16 kHz with hop_length=160 yields 3000 frames.
 static const NSUInteger kMWDefaultChunkFrames = 3000;
+
+// ── Whisper model constants ─────────────────────────────────────────────────
+
+/// Encoder downsampling factor (always 2 for Whisper).
+static const NSUInteger kMWInputStride = 2;
+
+/// Time precision for timestamps in seconds (1 / tokens_per_second).
+static const float kMWTimePrecision = 0.02f;
+
+/// Maximum generation length in tokens.
+static const NSUInteger kMWMaxGenerationLength = 448;
