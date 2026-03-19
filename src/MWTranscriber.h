@@ -13,15 +13,32 @@ typedef NS_ENUM(NSInteger, MWErrorCode) {
     MWErrorCodeEncodeFailed    = 2,
 };
 
+/// Compute type for model inference.
+typedef NS_ENUM(NSInteger, MWComputeType) {
+    MWComputeTypeDefault = 0,
+    MWComputeTypeFloat32,
+    MWComputeTypeFloat16,
+    MWComputeTypeInt8,
+    MWComputeTypeInt8Float16,
+    MWComputeTypeInt8Float32,
+};
+
 /// Minimal M0 transcriber: loads a CTranslate2 Whisper model on Metal (MPS)
 /// and exposes basic model properties and a smoke-test encode method.
 @interface MWTranscriber : NSObject
 
-/// Initialize with a CTranslate2 model directory path.
-/// The directory must contain model.bin, vocabulary.json, etc.
-/// Returns nil and sets *error on failure.
+/// Initialize with a CTranslate2 model directory path and default compute type.
 - (nullable instancetype)initWithModelPath:(NSString *)modelPath
                                      error:(NSError **)error;
+
+/// Initialize with a CTranslate2 model directory path and explicit compute type.
+/// This is the designated initializer.
+- (nullable instancetype)initWithModelPath:(NSString *)modelPath
+                               computeType:(MWComputeType)computeType
+                                     error:(NSError **)error NS_DESIGNATED_INITIALIZER;
+
+/// Unavailable — use initWithModelPath:error: or initWithModelPath:computeType:error:.
+- (instancetype)init NS_UNAVAILABLE;
 
 /// Whether the loaded model is multilingual (supports language detection).
 @property (nonatomic, readonly) BOOL isMultilingual;

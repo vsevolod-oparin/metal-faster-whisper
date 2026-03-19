@@ -10,10 +10,11 @@ set(CMAKE_OBJCXX_STANDARD 17)
 set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 
 # ── Find CTranslate2 ────────────────────────────────────────────────────────
-# Use the installed CTranslate2 from the sibling build directory.
-# Override with -DCMAKE_PREFIX_PATH=<path> if installed elsewhere.
-list(APPEND CMAKE_PREFIX_PATH
-    "/Users/smileijp/projects/branch/CTranslate2/build/install")
+# Default: look in the sibling CTranslate2 build/install directory.
+# Override with: cmake -DCT2_INSTALL_PREFIX=/your/path ..
+set(CT2_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../CTranslate2/build/install"
+    CACHE PATH "Path to CTranslate2 install prefix")
+list(APPEND CMAKE_PREFIX_PATH "${CT2_INSTALL_PREFIX}")
 
 find_package(ctranslate2 REQUIRED)
 
@@ -53,7 +54,7 @@ set_target_properties(MetalWhisper PROPERTIES
     INSTALL_NAME_DIR "@rpath"
     BUILD_WITH_INSTALL_RPATH OFF
     INSTALL_RPATH "@loader_path;@loader_path/../lib"
-    BUILD_RPATH "${CMAKE_BINARY_DIR};/Users/smileijp/projects/branch/CTranslate2/build/install/lib"
+    BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib"
     MACOSX_RPATH ON
 )
 
@@ -71,7 +72,7 @@ foreach(test_source ${MW_TESTS})
     target_compile_options(${test_name} PRIVATE -fno-objc-arc)
     set_target_properties(${test_name} PROPERTIES
         INSTALL_RPATH "@loader_path/../lib"
-        BUILD_RPATH "${CMAKE_BINARY_DIR};/Users/smileijp/projects/branch/CTranslate2/build/install/lib"
+        BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib"
         MACOSX_RPATH ON
     )
 endforeach()
@@ -88,6 +89,13 @@ install(TARGETS MetalWhisper
 # Install public headers
 install(FILES src/MWTranscriber.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
+)
+
+# Install CTranslate2 dylib alongside MetalWhisper so the install is self-contained.
+# Resolves symlinks to find the real file, then installs versioned + unversioned links.
+file(GLOB CT2_DYLIBS "${CT2_INSTALL_PREFIX}/lib/libctranslate2*.dylib")
+install(FILES ${CT2_DYLIBS}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 # Install test binaries

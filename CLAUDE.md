@@ -1,3 +1,38 @@
+## Completion Discipline
+
+**Nothing is done until it's fully done.** This is the #1 priority governing all work.
+
+### Finish everything
+
+Before declaring any task complete, verify against the source of truth:
+- **Milestone/task has a checklist (ROADMAP, issue, spec)?** Every item must be addressed — implemented, tested, and checked off. If an item can't be done, explain why explicitly. Never silently skip items.
+- **Tests are listed?** Every test must be implemented and run. A test that wasn't run is the same as a test that doesn't exist.
+- **Code was written?** It must build and run successfully. "It should work" is not verification.
+
+**Anti-pattern to avoid:** Implementing 80% of a task, declaring it "complete," and leaving the remaining 20% as implied future work. If the task says "verify f32, f16, int8" — verify all three, not just the first two.
+
+### Self-review after implementation
+
+After completing any non-trivial implementation, proactively review your own work before presenting it to the user:
+
+1. **Completeness check:** Re-read the original requirements. Did you miss anything? Compare deliverables against the spec line by line.
+2. **Build & test:** Run the build. Run the tests. If something fails, fix it — don't report partial success.
+3. **Code quality scan:** Look at the code you wrote for:
+   - Obvious bugs (off-by-one, null/nil handling, resource leaks)
+   - Style consistency with existing code in the project
+   - Missing error handling at boundaries
+   - Hardcoded values that should be configurable
+4. **Update tracking artifacts:** If there's a ROADMAP, checklist, or issue tracker — update it with actual results. Check boxes, note findings, record deviations.
+5. **Propose improvements:** If you notice something worth improving but outside current scope, mention it explicitly rather than silently ignoring it.
+
+If a self-review would take more effort than the implementation itself, at minimum do steps 1 (completeness) and 2 (build & test).
+
+### When something doesn't work as expected
+
+Document it honestly. If a test reveals a limitation (e.g., a backend doesn't support a feature), that's a finding — record it in the appropriate place (ROADMAP, report, or both) with the actual behavior and why. Don't paper over failures or quietly downgrade expectations.
+
+---
+
 ## Temporary Files
 
 You can use the `tmp/` subfolder in the current project folder to save any temporary files if needed.

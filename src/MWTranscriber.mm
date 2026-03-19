@@ -10,50 +10,67 @@
 
 NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
 
+static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
+    switch (type) {
+        case MWComputeTypeFloat32:     return ctranslate2::ComputeType::FLOAT32;
+        case MWComputeTypeFloat16:     return ctranslate2::ComputeType::FLOAT16;
+        case MWComputeTypeInt8:        return ctranslate2::ComputeType::INT8;
+        case MWComputeTypeInt8Float16: return ctranslate2::ComputeType::INT8_FLOAT16;
+        case MWComputeTypeInt8Float32: return ctranslate2::ComputeType::INT8_FLOAT32;
+        case MWComputeTypeDefault:
+        default:                       return ctranslate2::ComputeType::DEFAULT;
+    }
+}
+
 // ── Private ivar block ──────────────────────────────────────────────────────
 @implementation MWTranscriber {
-    // Thread-safe replica pool that owns the model and a worker thread.
     std::unique_ptr<ctranslate2::models::Whisper> _whisper;
 }
 
-// ── Initializer ─────────────────────────────────────────────────────────────
+// ── Initializers ────────────────────────────────────────────────────────────
 - (nullable instancetype)initWithModelPath:(NSString *)modelPath
                                      error:(NSError **)error {
-    @autoreleasepool {
-        self = [super init];
-        if (!self) return nil;
+    return [self initWithModelPath:modelPath
+                       computeType:MWComputeTypeDefault
+                             error:error];
+}
 
-        try {
-            const std::string path = [modelPath UTF8String];
+- (nullable instancetype)initWithModelPath:(NSString *)modelPath
+                               computeType:(MWComputeType)computeType
+                                     error:(NSError **)error {
+    self = [super init];
+    if (!self) return nil;
 
-            // Create the Whisper replica pool on the MPS (Metal) device.
-            // Uses default compute type and a single device index.
-            _whisper = std::make_unique<ctranslate2::models::Whisper>(
-                path,
-                ctranslate2::Device::MPS,
-                ctranslate2::ComputeType::DEFAULT,
-                std::vector<int>{0},       // device_indices
-                false                       // tensor_parallel
-            );
+    try {
+        const std::string path = [modelPath UTF8String];
+        const auto ct2Type = mwComputeTypeToCT2(computeType);
 
-            NSLog(@"[MetalWhisper] Model loaded: multilingual=%d  n_mels=%zu",
-                  self.isMultilingual, (size_t)self.nMels);
+        _whisper = std::make_unique<ctranslate2::models::Whisper>(
+            path,
+            ctranslate2::Device::MPS,
+            ct2Type,
+            std::vector<int>{0},
+            false
+        );
 
-        } catch (const std::exception& e) {
-            if (error) {
-                *error = [NSError errorWithDomain:MWErrorDomain
-                                             code:MWErrorCodeModelLoadFailed
-                                         userInfo:@{
-                    NSLocalizedDescriptionKey:
-                        [NSString stringWithFormat:@"Failed to load model: %s", e.what()]
-                }];
-            }
-            [self release];
-            return nil;
+        NSLog(@"[MetalWhisper] Model loaded: multilingual=%d  n_mels=%zu  compute_type=%s",
+              self.isMultilingual, (size_t)self.nMels,
+              ctranslate2::compute_type_to_str(ct2Type).c_str());
+
+    } catch (const std::exception& e) {
+        if (error) {
+            *error = [NSError errorWithDomain:MWErrorDomain
+                                         code:MWErrorCodeModelLoadFailed
+                                     userInfo:@{
+                NSLocalizedDescriptionKey:
+                    [NSString stringWithFormat:@"Failed to load model: %s", e.what()]
+            }];
         }
-
-        return self;
+        [self release];
+        return nil;
     }
+
+    return self;
 }
 
 // ── Properties ──────────────────────────────────────────────────────────────
