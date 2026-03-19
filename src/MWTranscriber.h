@@ -6,6 +6,44 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// A transcription segment with timing, text, and decode metadata.
+@interface MWTranscriptionSegment : NSObject
+@property (nonatomic, readonly) NSUInteger segmentId;
+@property (nonatomic, readonly) NSUInteger seek;
+@property (nonatomic, readonly) float start;
+@property (nonatomic, readonly) float end;
+@property (nonatomic, readonly) NSString *text;
+@property (nonatomic, readonly) NSArray<NSNumber *> *tokens;
+@property (nonatomic, readonly) float temperature;
+@property (nonatomic, readonly) float avgLogProb;
+@property (nonatomic, readonly) float compressionRatio;
+@property (nonatomic, readonly) float noSpeechProb;
+
+- (instancetype)initWithSegmentId:(NSUInteger)segmentId
+                             seek:(NSUInteger)seek
+                            start:(float)start
+                              end:(float)end
+                             text:(NSString *)text
+                           tokens:(NSArray<NSNumber *> *)tokens
+                      temperature:(float)temperature
+                       avgLogProb:(float)avgLogProb
+                 compressionRatio:(float)compressionRatio
+                    noSpeechProb:(float)noSpeechProb;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
+/// Info about the transcription run.
+@interface MWTranscriptionInfo : NSObject
+@property (nonatomic, readonly) NSString *language;
+@property (nonatomic, readonly) float languageProbability;
+@property (nonatomic, readonly) float duration;
+
+- (instancetype)initWithLanguage:(NSString *)language
+             languageProbability:(float)languageProbability
+                        duration:(float)duration;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
 /// A single timed segment from the decode output.
 @interface MWSegmentInfo : NSObject
 @property (nonatomic, readonly) NSUInteger seek;
@@ -51,6 +89,7 @@ typedef NS_ENUM(NSInteger, MWErrorCode) {
     MWErrorCodeTokenizerLoadFailed = 200,
     MWErrorCodeConfigLoadFailed = 300,
     MWErrorCodeGenerateFailed = 400,
+    MWErrorCodeTranscribeFailed = 500,
 };
 
 /// Compute type for model inference.
@@ -235,6 +274,35 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                                   seek:(NSUInteger)seek
                                                outSeek:(NSUInteger *)outSeek
                                 outSingleTimestampEnding:(BOOL *)outSingleTimestampEnding;
+
+// --- Transcription ---
+
+/// Transcribe audio from a file URL.
+/// Returns segments and transcription info.
+/// @param url Audio file URL
+/// @param language Language code (nil for auto-detect)
+/// @param task "transcribe" or "translate"
+/// @param options Transcription options (nil for defaults)
+/// @param segmentHandler Called for each segment as it's produced (nil to collect all)
+/// @param outInfo Output: transcription info (language, probability, duration)
+/// @param error Error output
+/// @return Array of all segments, or nil on failure
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeURL:(NSURL *)url
+                                                     language:(nullable NSString *)language
+                                                         task:(NSString *)task
+                                                      options:(nullable NSDictionary *)options
+                                               segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+                                                         info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                        error:(NSError **)error;
+
+/// Transcribe audio from float32 samples (16kHz mono).
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeAudio:(NSData *)audio
+                                                       language:(nullable NSString *)language
+                                                           task:(NSString *)task
+                                                        options:(nullable NSDictionary *)options
+                                                 segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+                                                           info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                          error:(NSError **)error;
 
 // --- M0 test method (backward compat) ---
 

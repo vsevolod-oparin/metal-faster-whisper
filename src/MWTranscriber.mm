@@ -1,4 +1,5 @@
 #import "MWTranscriber.h"
+#import "MWAudioDecoder.h"
 #import "MWConstants.h"
 
 #include <memory>
@@ -91,6 +92,95 @@ NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
 
 @end
 
+// ── MWTranscriptionSegment ────────────────────────────────────────────────────
+
+@implementation MWTranscriptionSegment {
+    NSUInteger _segmentId;
+    NSUInteger _seek;
+    float _start;
+    float _end;
+    NSString *_text;
+    NSArray<NSNumber *> *_tokens;
+    float _temperature;
+    float _avgLogProb;
+    float _compressionRatio;
+    float _noSpeechProb;
+}
+
+- (instancetype)initWithSegmentId:(NSUInteger)segmentId
+                             seek:(NSUInteger)seek
+                            start:(float)start
+                              end:(float)end
+                             text:(NSString *)text
+                           tokens:(NSArray<NSNumber *> *)tokens
+                      temperature:(float)temperature
+                       avgLogProb:(float)avgLogProb
+                 compressionRatio:(float)compressionRatio
+                    noSpeechProb:(float)noSpeechProb {
+    self = [super init];
+    if (!self) return nil;
+    _segmentId = segmentId;
+    _seek = seek;
+    _start = start;
+    _end = end;
+    _text = [text retain];
+    _tokens = [tokens retain];
+    _temperature = temperature;
+    _avgLogProb = avgLogProb;
+    _compressionRatio = compressionRatio;
+    _noSpeechProb = noSpeechProb;
+    return self;
+}
+
+- (NSUInteger)segmentId { return _segmentId; }
+- (NSUInteger)seek { return _seek; }
+- (float)start { return _start; }
+- (float)end { return _end; }
+- (NSString *)text { return _text; }
+- (NSArray<NSNumber *> *)tokens { return _tokens; }
+- (float)temperature { return _temperature; }
+- (float)avgLogProb { return _avgLogProb; }
+- (float)compressionRatio { return _compressionRatio; }
+- (float)noSpeechProb { return _noSpeechProb; }
+
+- (void)dealloc {
+    [_text release];
+    [_tokens release];
+    [super dealloc];
+}
+
+@end
+
+// ── MWTranscriptionInfo ──────────────────────────────────────────────────────
+
+@implementation MWTranscriptionInfo {
+    NSString *_language;
+    float _languageProbability;
+    float _duration;
+}
+
+- (instancetype)initWithLanguage:(NSString *)language
+             languageProbability:(float)languageProbability
+                        duration:(float)duration {
+    self = [super init];
+    if (!self) return nil;
+    _language = [language retain];
+    _languageProbability = languageProbability;
+    _duration = duration;
+    return self;
+}
+
+- (NSString *)language { return _language; }
+- (float)languageProbability { return _languageProbability; }
+- (float)duration { return _duration; }
+
+- (void)dealloc {
+    [_language release];
+    [super dealloc];
+}
+
+@end
+
 // ── Error helper ────────────────────────────────────────────────────────────
 
 static void MWSetError(NSError **error, NSInteger code, NSString *description) {
@@ -164,6 +254,7 @@ static NSDictionary *loadJSONFromPath(NSString *path, NSError **error) {
 @implementation MWTranscriber {
     std::unique_ptr<ctranslate2::models::Whisper> _whisper;
 
+    NSString *_modelPath;
     MWFeatureExtractor *_featureExtractor;
     MWTokenizer *_tokenizer;
 
@@ -194,6 +285,9 @@ static NSDictionary *loadJSONFromPath(NSString *path, NSError **error) {
                                      error:(NSError **)error {
     self = [super init];
     if (!self) return nil;
+
+    // Save model path for creating tokenizers later.
+    _modelPath = [modelPath retain];
 
     // Step 1: Load CTranslate2 model
     try {
@@ -1130,6 +1224,412 @@ static float getCompressionRatio(NSString *text) {
     return result;
 }
 
+// ── Mel slicing helper ───────────────────────────────────────────────────────
+
+/// Extract a sub-range of mel frames from a full mel spectrogram.
+/// fullMel is nMels x totalFrames, row-major. Returns nMels x numFrames.
+/// If startFrame + numFrames > totalFrames, copies what's available and zero-pads.
+static NSData *sliceMel(NSData *fullMel, NSUInteger nMels, NSUInteger totalFrames,
+                        NSUInteger startFrame, NSUInteger numFrames) {
+    NSMutableData *slice = [NSMutableData dataWithLength:nMels * numFrames * sizeof(float)];
+    const float *src = (const float *)[fullMel bytes];
+    float *dst = (float *)[slice mutableBytes];
+    NSUInteger copyFrames = (startFrame + numFrames <= totalFrames)
+                            ? numFrames : (totalFrames > startFrame ? totalFrames - startFrame : 0);
+    for (NSUInteger row = 0; row < nMels; row++) {
+        if (copyFrames > 0) {
+            memcpy(dst + row * numFrames,
+                   src + row * totalFrames + startFrame,
+                   copyFrames * sizeof(float));
+        }
+    }
+    return slice;
+}
+
+// ── Transcription ────────────────────────────────────────────────────────────
+
+/// Helper to read an option from the dictionary with a default value.
+static NSUInteger optUInt(NSDictionary *opts, NSString *key, NSUInteger dflt) {
+    NSNumber *val = opts[key];
+    return val ? [val unsignedIntegerValue] : dflt;
+}
+static float optFloat(NSDictionary *opts, NSString *key, float dflt) {
+    NSNumber *val = opts[key];
+    return val ? [val floatValue] : dflt;
+}
+static BOOL optBool(NSDictionary *opts, NSString *key, BOOL dflt) {
+    NSNumber *val = opts[key];
+    return val ? [val boolValue] : dflt;
+}
+static NSString *optString(NSDictionary *opts, NSString *key) {
+    NSString *val = opts[key];
+    return ([val isKindOfClass:[NSString class]] && [val length] > 0) ? val : nil;
+}
+
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeURL:(NSURL *)url
+                                                     language:(nullable NSString *)language
+                                                         task:(NSString *)task
+                                                      options:(nullable NSDictionary *)options
+                                               segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+                                                         info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                        error:(NSError **)error {
+    // Decode audio file to float32 16kHz mono.
+    NSError *decodeError = nil;
+    NSData *audio = [MWAudioDecoder decodeAudioAtURL:url error:&decodeError];
+    if (!audio) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Audio decode failed: %@",
+                    [decodeError localizedDescription]]);
+        return nil;
+    }
+
+    return [self transcribeAudio:audio
+                        language:language
+                            task:task
+                         options:options
+                  segmentHandler:segmentHandler
+                            info:outInfo
+                           error:error];
+}
+
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeAudio:(NSData *)audio
+                                                       language:(nullable NSString *)language
+                                                           task:(NSString *)task
+                                                        options:(nullable NSDictionary *)options
+                                                 segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+                                                           info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                          error:(NSError **)error {
+    if (!options) options = @{};
+
+    // Handle empty/nil audio gracefully.
+    if (!audio || [audio length] == 0) {
+        if (outInfo) {
+            *outInfo = [[[MWTranscriptionInfo alloc] initWithLanguage:(language ?: @"en")
+                                                 languageProbability:0.0f
+                                                            duration:0.0f] autorelease];
+        }
+        return @[];
+    }
+
+    NSUInteger totalSamples = [audio length] / sizeof(float);
+    float audioDuration = (float)totalSamples / (float)kMWTargetSampleRate;
+
+    // ── Parse options ────────────────────────────────────────────────────────
+    NSUInteger beamSize = optUInt(options, @"beamSize", 5);
+    NSUInteger bestOf = optUInt(options, @"bestOf", 5);
+    float patience = optFloat(options, @"patience", 1.0f);
+    float lengthPenalty = optFloat(options, @"lengthPenalty", 1.0f);
+    float repetitionPenalty = optFloat(options, @"repetitionPenalty", 1.0f);
+    NSUInteger noRepeatNgramSize = optUInt(options, @"noRepeatNgramSize", 0);
+    float compressionRatioThreshold = optFloat(options, @"compressionRatioThreshold", 2.4f);
+    float logProbThreshold = optFloat(options, @"logProbThreshold", -1.0f);
+    float noSpeechThreshold = optFloat(options, @"noSpeechThreshold", 0.6f);
+    BOOL conditionOnPreviousText = optBool(options, @"conditionOnPreviousText", YES);
+    float promptResetOnTemperature = optFloat(options, @"promptResetOnTemperature", 0.5f);
+    BOOL withoutTimestamps = optBool(options, @"withoutTimestamps", NO);
+    BOOL suppressBlank = optBool(options, @"suppressBlank", YES);
+    float maxInitialTimestamp = optFloat(options, @"maxInitialTimestamp", 1.0f);
+    NSString *initialPrompt = optString(options, @"initialPrompt");
+    NSString *prefix = optString(options, @"prefix");
+    NSString *hotwords = optString(options, @"hotwords");
+
+    NSArray<NSNumber *> *temperatures = options[@"temperatures"];
+    if (!temperatures || ![temperatures isKindOfClass:[NSArray class]] || [temperatures count] == 0) {
+        temperatures = @[@0.0, @0.2, @0.4, @0.6, @0.8, @1.0];
+    }
+
+    NSArray<NSNumber *> *userSuppressTokens = options[@"suppressTokens"];
+    if (!userSuppressTokens || ![userSuppressTokens isKindOfClass:[NSArray class]]) {
+        userSuppressTokens = @[@(-1)];
+    }
+
+    // Parse clip_timestamps.
+    NSArray<NSNumber *> *clipTimestamps = options[@"clipTimestamps"];
+
+    // ── Step 1: Compute mel spectrogram for entire audio ─────────────────────
+    NSError *melError = nil;
+    NSData *fullMel = [_featureExtractor computeMelSpectrogramFromAudio:audio error:&melError];
+    if (!fullMel) {
+        MWSetError(error, MWErrorCodeTranscribeFailed,
+                   [NSString stringWithFormat:@"Mel computation failed: %@",
+                    [melError localizedDescription]]);
+        return nil;
+    }
+    NSUInteger nMels = self.nMels;
+    NSUInteger totalFrames = _featureExtractor.lastFrameCount;
+    NSUInteger segmentSize = kMWDefaultChunkFrames;  // 3000 frames = 30s
+    float segmentDuration = (float)segmentSize / (float)_framesPerSecond;
+
+    // ── Step 2: Detect language ──────────────────────────────────────────────
+    NSString *detectedLanguage = language;
+    float languageProb = 1.0f;
+
+    if (!detectedLanguage && self.isMultilingual) {
+        NSString *detected = nil;
+        float prob = 0.0f;
+        NSError *langError = nil;
+        BOOL ok = [self detectLanguageFromAudio:audio
+                                       segments:1
+                                      threshold:0.5f
+                               detectedLanguage:&detected
+                                    probability:&prob
+                               allLanguageProbs:nil
+                                          error:&langError];
+        if (ok && detected) {
+            detectedLanguage = detected;
+            languageProb = prob;
+        } else {
+            detectedLanguage = @"en";
+            languageProb = 0.0f;
+        }
+    } else if (!detectedLanguage) {
+        detectedLanguage = @"en";
+        languageProb = 1.0f;
+    }
+
+    NSLog(@"[MetalWhisper] Detected language: %@ (%.2f)", detectedLanguage, languageProb);
+
+    // ── Step 3: Create tokenizer for the detected language/task ──────────────
+    // Check if the existing tokenizer matches; if not, create a new one.
+    MWTokenizer *loopTokenizer = _tokenizer;
+    BOOL createdNewTokenizer = NO;
+
+    if (![detectedLanguage isEqualToString:_tokenizer.languageCode] ||
+        ![task isEqualToString:@"transcribe"]) {
+        NSError *tokErr = nil;
+        MWTokenizer *newTok = [[MWTokenizer alloc] initWithModelPath:_modelPath
+                                                        multilingual:self.isMultilingual
+                                                                task:task
+                                                            language:detectedLanguage
+                                                               error:&tokErr];
+        if (newTok) {
+            loopTokenizer = newTok;
+            createdNewTokenizer = YES;
+        }
+        // If creation fails, fall back to existing tokenizer.
+    }
+
+    // ── Step 4: Build suppressed tokens ──────────────────────────────────────
+    NSArray<NSNumber *> *builtSuppressTokens = [self buildSuppressedTokens:userSuppressTokens];
+
+    // ── Step 5: Handle initial_prompt → prepend tokens ───────────────────────
+    NSMutableArray<NSNumber *> *allTokens = [[NSMutableArray alloc] init];
+    if (initialPrompt && [initialPrompt length] > 0) {
+        NSString *prefixed = [@" " stringByAppendingString:initialPrompt];
+        NSArray<NSNumber *> *promptTokens = [loopTokenizer encode:prefixed];
+        [allTokens addObjectsFromArray:promptTokens];
+    }
+    NSInteger promptResetSince = 0;
+
+    // ── Step 6: Parse clip_timestamps → seek_clips ───────────────────────────
+    // Each pair of timestamps defines a clip to transcribe.
+    // Default: single clip [0, totalFrames].
+    NSMutableArray<NSNumber *> *seekClips = [[NSMutableArray alloc] init];
+
+    if (clipTimestamps && [clipTimestamps count] > 0) {
+        // Convert seconds to mel frames.
+        for (NSNumber *ts in clipTimestamps) {
+            float secs = [ts floatValue];
+            NSUInteger frame = (NSUInteger)(secs * (float)_framesPerSecond);
+            if (frame > totalFrames) frame = totalFrames;
+            [seekClips addObject:@(frame)];
+        }
+        // Ensure even number (pairs). If odd, add totalFrames at end.
+        if ([seekClips count] % 2 != 0) {
+            [seekClips addObject:@(totalFrames)];
+        }
+    } else {
+        [seekClips addObject:@(0)];
+        [seekClips addObject:@(totalFrames)];
+    }
+
+    // ── Step 7: Main decode loop ─────────────────────────────────────────────
+    NSMutableArray<MWTranscriptionSegment *> *segments = [[NSMutableArray alloc] init];
+    NSUInteger segmentIndex = 0;
+    BOOL stopped = NO;
+
+    for (NSUInteger clipIdx = 0; clipIdx + 1 < [seekClips count]; clipIdx += 2) {
+        NSUInteger seek = [[seekClips objectAtIndex:clipIdx] unsignedIntegerValue];
+        NSUInteger clipEnd = [[seekClips objectAtIndex:clipIdx + 1] unsignedIntegerValue];
+
+        while (seek < clipEnd && !stopped) {
+            NSUInteger previousSeek = seek;
+            float timeOffset = (float)seek / (float)_framesPerSecond;
+
+            // a) Extract mel segment at seek position.
+            NSUInteger framesAvailable = (seek < totalFrames) ? (totalFrames - seek) : 0;
+            NSUInteger framesToExtract = (framesAvailable < segmentSize) ? framesAvailable : segmentSize;
+
+            NSData *segmentMel = nil;
+            if (framesToExtract == 0) {
+                // Beyond audio — produce silence.
+                segmentMel = [NSMutableData dataWithLength:nMels * segmentSize * sizeof(float)];
+            } else {
+                segmentMel = sliceMel(fullMel, nMels, totalFrames, seek, framesToExtract);
+            }
+
+            // b) Pad/trim to 3000 frames.
+            segmentMel = padOrTrimMel(segmentMel, nMels, framesToExtract, segmentSize);
+
+            // c) Encode mel.
+            NSError *encError = nil;
+            NSData *encoderOutput = [self encodeFeatures:segmentMel nFrames:segmentSize error:&encError];
+            if (!encoderOutput) {
+                NSLog(@"[MetalWhisper] Encode failed at seek=%lu: %@",
+                      (unsigned long)seek, [encError localizedDescription]);
+                seek += segmentSize;  // Skip this chunk.
+                continue;
+            }
+
+            // d) Build prompt (with previous tokens if conditionOnPreviousText).
+            NSArray<NSNumber *> *previousTokens = nil;
+            if (conditionOnPreviousText && [allTokens count] > 0) {
+                // Use tokens since last prompt reset.
+                NSUInteger tokCount = [allTokens count];
+                if (promptResetSince >= 0 && (NSUInteger)promptResetSince < tokCount) {
+                    previousTokens = [allTokens subarrayWithRange:
+                        NSMakeRange((NSUInteger)promptResetSince, tokCount - (NSUInteger)promptResetSince)];
+                } else {
+                    previousTokens = allTokens;
+                }
+            }
+
+            NSArray<NSNumber *> *prompt = [self buildPromptWithPreviousTokens:previousTokens
+                                                            withoutTimestamps:withoutTimestamps
+                                                                       prefix:prefix
+                                                                     hotwords:hotwords];
+
+            // e) Generate with fallback.
+            NSError *genError = nil;
+            MWGenerateResult *result = [self generateWithEncoderOutput:encoderOutput
+                                                                prompt:prompt
+                                                          temperatures:temperatures
+                                                              beamSize:beamSize
+                                                              patience:patience
+                                                                bestOf:bestOf
+                                                         lengthPenalty:lengthPenalty
+                                                     repetitionPenalty:repetitionPenalty
+                                                     noRepeatNgramSize:noRepeatNgramSize
+                                               compressionRatioThreshold:compressionRatioThreshold
+                                                       logProbThreshold:logProbThreshold
+                                                     noSpeechThreshold:noSpeechThreshold
+                                                         suppressTokens:builtSuppressTokens
+                                                          suppressBlank:suppressBlank
+                                                    maxInitialTimestamp:maxInitialTimestamp
+                                                                  error:&genError];
+            if (!result) {
+                NSLog(@"[MetalWhisper] Generate failed at seek=%lu: %@",
+                      (unsigned long)seek, [genError localizedDescription]);
+                seek += segmentSize;
+                continue;
+            }
+
+            // f) Check no-speech → skip if silent.
+            BOOL shouldSkip = NO;
+            if (noSpeechThreshold >= 0.0f && result.noSpeechProb > noSpeechThreshold) {
+                // If logProbThreshold is active and avgLogProb is below it, skip.
+                if (!isnan(logProbThreshold) && result.avgLogProb < logProbThreshold) {
+                    shouldSkip = YES;
+                }
+            }
+
+            if (shouldSkip) {
+                seek += segmentSize;
+                continue;
+            }
+
+            // g) Split by timestamps.
+            NSUInteger outSeek = seek;
+            BOOL singleTimestampEnding = NO;
+            NSArray<MWSegmentInfo *> *splitSegs = [self splitSegmentsByTimestamps:result.tokenIDs
+                                                                      timeOffset:timeOffset
+                                                                     segmentSize:segmentSize
+                                                                 segmentDuration:segmentDuration
+                                                                            seek:seek
+                                                                         outSeek:&outSeek
+                                                          outSingleTimestampEnding:&singleTimestampEnding];
+            seek = outSeek;
+
+            // h) For each segment: decode text, create MWTranscriptionSegment, call handler.
+            for (MWSegmentInfo *seg in splitSegs) {
+                if (stopped) break;
+
+                // Filter out timestamp tokens for text decoding.
+                NSUInteger tsBegin = loopTokenizer.timestampBegin;
+                NSUInteger eot = loopTokenizer.eot;
+                NSMutableArray<NSNumber *> *textTokens = [[NSMutableArray alloc] init];
+                for (NSNumber *tok in seg.tokens) {
+                    NSUInteger t = [tok unsignedIntegerValue];
+                    if (t < tsBegin && t != eot) {
+                        [textTokens addObject:tok];
+                    }
+                }
+
+                NSString *segText = [loopTokenizer decode:textTokens];
+                [textTokens release];
+
+                // Clamp end time to audio duration.
+                float endTime = seg.endTime;
+                if (endTime > audioDuration) endTime = audioDuration;
+
+                MWTranscriptionSegment *transSeg = [[MWTranscriptionSegment alloc]
+                    initWithSegmentId:segmentIndex
+                                 seek:seg.seek
+                                start:seg.startTime
+                                  end:endTime
+                                 text:segText
+                               tokens:seg.tokens
+                          temperature:result.temperature
+                           avgLogProb:result.avgLogProb
+                     compressionRatio:result.compressionRatio
+                        noSpeechProb:result.noSpeechProb];
+
+                [segments addObject:transSeg];
+
+                if (segmentHandler) {
+                    BOOL stop = NO;
+                    segmentHandler(transSeg, &stop);
+                    if (stop) stopped = YES;
+                }
+
+                [transSeg release];
+                segmentIndex++;
+            }
+
+            // i) Update allTokens and handle prompt reset.
+            [allTokens addObjectsFromArray:result.tokenIDs];
+
+            if (result.temperature >= promptResetOnTemperature) {
+                promptResetSince = (NSInteger)[allTokens count];
+            }
+
+            // j) Infinite loop protection: if seek didn't advance, force-advance.
+            if (seek <= previousSeek) {
+                seek = previousSeek + segmentSize;
+            }
+        }
+
+        if (stopped) break;
+    }
+
+    // ── Build output ─────────────────────────────────────────────────────────
+    if (outInfo) {
+        *outInfo = [[[MWTranscriptionInfo alloc] initWithLanguage:detectedLanguage
+                                             languageProbability:languageProb
+                                                        duration:audioDuration] autorelease];
+    }
+
+    NSArray<MWTranscriptionSegment *> *result = [[segments copy] autorelease];
+    [segments release];
+    [allTokens release];
+    [seekClips release];
+    if (createdNewTokenizer) {
+        [loopTokenizer release];
+    }
+
+    return result;
+}
+
 // ── Silence encode test ─────────────────────────────────────────────────────
 
 - (nullable NSString *)encodeSilenceTestWithError:(NSError **)error {
@@ -1168,6 +1668,7 @@ static float getCompressionRatio(NSString *text) {
 
 - (void)dealloc {
     _whisper.reset();
+    [_modelPath release];
     [_featureExtractor release];
     [_tokenizer release];
     [_supportedLanguages release];
