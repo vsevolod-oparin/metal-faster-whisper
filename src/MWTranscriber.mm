@@ -10,6 +10,9 @@
 
 NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
 
+// 30 seconds of audio at 16 kHz with hop_length=160 → 3000 mel spectrogram frames.
+static constexpr ctranslate2::dim_t kMWDefaultChunkFrames = 3000;
+
 static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     switch (type) {
         case MWComputeTypeFloat32:     return ctranslate2::ComputeType::FLOAT32;
@@ -84,35 +87,29 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 
 // ── Silence encode test ─────────────────────────────────────────────────────
 - (nullable NSString *)encodeSilenceTestWithError:(NSError **)error {
-    // Do NOT wrap the body in @autoreleasepool: the returned NSString is
-    // autoreleased and must survive until the *caller's* pool drains.
     try {
-        const size_t n_mels = _whisper->n_mels();
+        const auto n_mels = static_cast<ctranslate2::dim_t>(_whisper->n_mels());
 
-        // Create a zero-filled StorageView of shape [1, n_mels, 3000]
-        // representing 30 seconds of silence as a mel spectrogram.
+        // Zero-filled mel spectrogram: [1, n_mels, chunk_frames] (30s of silence).
         ctranslate2::StorageView features(
-            {1, static_cast<ctranslate2::dim_t>(n_mels), 3000},
+            {1, n_mels, kMWDefaultChunkFrames},
             0.0f,
             ctranslate2::Device::CPU
         );
 
-        // Encode via the replica pool (returns a future).
         auto future = _whisper->encode(features, /*to_cpu=*/true);
         ctranslate2::StorageView output = future.get();
 
-        // Format the output shape as a string.
+        // Build shape string using std::string (RAII — no leak on exception).
         const auto& shape = output.shape();
-        NSMutableString *shapeStr = [[NSMutableString alloc] initWithString:@"["];
+        std::string shapeStr = "[";
         for (size_t i = 0; i < shape.size(); ++i) {
-            if (i > 0) [shapeStr appendString:@", "];
-            [shapeStr appendFormat:@"%lld", (long long)shape[i]];
+            if (i > 0) shapeStr += ", ";
+            shapeStr += std::to_string(shape[i]);
         }
-        [shapeStr appendString:@"]"];
+        shapeStr += "]";
 
-        NSString *result = [[shapeStr copy] autorelease];
-        [shapeStr release];
-        return result;
+        return [NSString stringWithUTF8String:shapeStr.c_str()];
 
     } catch (const std::exception& e) {
         if (error) {

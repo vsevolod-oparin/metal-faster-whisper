@@ -33,6 +33,78 @@ Document it honestly. If a test reveals a limitation (e.g., a backend doesn't su
 
 ---
 
+## Anti-Patterns to Avoid
+
+This project uses Obj-C++, C++17, Metal/MPS, and manual memory management (no ARC). Every code change must avoid these patterns. When reviewing code — your own or an agent's — check against this list.
+
+### Concurrency & Data Races
+
+- **Unprotected shared state between GCD and C++ threads.** CTranslate2 has its own thread pool. If GCD blocks access the same `Whisper` instance or `StorageView` without serialization, data races occur. Use a serial dispatch queue or separate model replicas per concurrent task.
+- **Metal completion handler races.** `addCompletedHandler:` runs on an arbitrary Metal thread. Never modify shared state from a completion handler without synchronization — dispatch to a known queue.
+- **C++ mutex held across `dispatch_async`.** A block may execute on a different thread than the one that locked. Use GCD serial queues for synchronization instead of mixing C++ mutexes with GCD.
+- **`StorageView` shared across threads.** CTranslate2's tensor container is not thread-safe. Never pass a `StorageView` to one call while another thread reads or modifies it.
+- **Concurrent encoding on the same `MTLCommandBuffer`.** Encoding is not thread-safe per command buffer. Create separate command buffers per thread via `MTLCommandQueue` (which is thread-safe).
+
+### Time-Based Logic
+
+- **Sleep-based polling.** Never use `usleep`/`sleep`/`[NSThread sleep...]` loops to wait for GPU or async work. Use `dispatch_semaphore_wait`, `MTLEvent`/`MTLSharedEvent`, or `addCompletedHandler:`.
+- **`waitUntilCompleted` stalls.** Avoid blocking CPU while GPU executes when you could pipeline work. While GPU runs segment N, CPU should prepare segment N+1.
+- **Hardcoded timeouts.** Don't hardcode timeouts for model loading or inference. Make them configurable or use cancellation tokens.
+
+### Hardcoded Constants
+
+- **Magic numbers.** Never write raw `3000`, `80`, `128`, `1500`, `0.5`, `2.4` etc. in code. Define named constants (`kMWDefaultChunkFrames`, `kMWCompressionRatioThreshold`) with a comment citing the source (e.g., Whisper paper, model config).
+- **Hardcoded absolute paths.** Use configurable variables (CMake cache vars, environment vars, function parameters). No `/Users/...` in committed code.
+- **Unchecked platform assumptions.** Don't assume Metal is available — check `MTLCreateSystemDefaultDevice()` and provide a clear error. Don't assume Apple Silicon (unified memory) without checking.
+
+### God Objects & File Size
+
+- **Single class doing everything.** `MWTranscriber` must delegate to `MWFeatureExtractor`, `MWTokenizer`, `MWDecodeLoop`, etc. — not absorb their logic. No class should exceed ~800 lines.
+- **No file over 1000 lines.** If a file grows past this, split by responsibility.
+- **No "Utils" dumping ground.** Group utilities by domain: `MWAudioMath.h`, `MWCompressionUtils.h`.
+- **Header accumulation.** Don't put all types in one header. Use separate headers per concern: `MWTypes.h`, `MWErrors.h`, `MWSegment.h`, with an umbrella `MetalWhisper.h`.
+
+### C++ Specific
+
+- **Raw pointer ownership ambiguity.** Use `std::unique_ptr` for owning, raw pointers only for non-owning observers. Document ownership at every API boundary.
+- **RAII gaps in exception paths.** Every `alloc`/`new`/resource acquisition must be cleaned up even if an exception is thrown. In MRC code, a C++ exception skips `[obj release]` — use `@try/@finally` or C++ RAII wrappers around Obj-C objects.
+- **Object slicing.** Never store polymorphic objects by value. Use pointers or references.
+- **Dangling references to temporaries.** Always copy `[nsString UTF8String]` into `std::string` — the `const char*` dies when the autorelease pool drains.
+- **`shared_ptr` cycles.** Use `weak_ptr` for back-references. Prefer `unique_ptr` with non-owning raw pointers.
+- **Header bloat.** Keep C++ includes strictly in `.mm` files. Never include CTranslate2 headers in public `.h` — this would break Swift imports (M10).
+
+### Objective-C (MRC) Specific
+
+- **Missing release on early-return paths.** Every `alloc`/`copy` must have a matching `release` on ALL code paths including error returns. Audit early returns for leaks.
+- **Autorelease accumulation in loops.** Wrap every iteration of long-running loops (decode loop, batch processing) in `@autoreleasepool {}`.  For 1-hour audio this prevents hundreds of MB of leaked temporaries.
+- **`@autoreleasepool` in init or around autoreleased return values.** Don't wrap init in `@autoreleasepool` (`[self release]` on failure risks premature dealloc). Don't wrap methods returning autoreleased objects — the pool drains the return value before the caller gets it.
+- **Obj-C objects in C++ containers without retain.** `std::vector<NSString*>` doesn't call `retain` on insert or `release` on removal. Use `NSMutableArray` for Obj-C collections, or write a RAII wrapper.
+- **Missing `@autoreleasepool` on C++ threads.** When CTranslate2 callbacks create Obj-C objects, there's no pool on the C++ thread. Wrap in `@autoreleasepool {}`.
+- **Category method collisions.** Always prefix category methods: `mw_methodName`. Or prefer standalone functions over categories.
+- **Forgetting `[super dealloc]`.** Must be the LAST line in `dealloc`, after all cleanup.
+
+### Metal/GPU Specific
+
+- **Unnecessary CPU↔GPU copies on unified memory.** Apple Silicon shares physical memory. Create `StorageView` on `Device::MPS` when the GPU will consume it. Pass `to_cpu=false` when the result feeds another GPU operation. Only copy to CPU for token/text processing.
+- **No triple buffering for streaming.** For continuous audio (M13), maintain 3 mel spectrogram buffers with a `dispatch_semaphore_t(3)` to overlap CPU prep and GPU execution.
+- **Blocking main thread with GPU work.** Always submit and wait for GPU work on background queues. Only dispatch UI updates to main.
+
+### C++/Obj-C++ Interop
+
+- **C++ exceptions crossing Obj-C boundaries.** Apple frameworks are not exception-safe — a C++ exception through `NSRunLoop`, GCD, or any Apple frame causes undefined behavior (typically abort). **Every** public Obj-C method calling C++ code must wrap in `try/catch`. No exceptions.
+- **C++ types in public headers.** Never expose `std::string`, `StorageView`, etc. in `.h` files. Swift can't import them and it forces all importers to compile as Obj-C++. Use pimpl — declare C++ ivars in `@implementation`, not `@interface`.
+- **Mixing memory models.** Don't `retain`/`release` C++ objects or `new`/`delete` Obj-C objects. Keep each in its own world.
+
+### General
+
+- **Cargo cult porting.** Don't transliterate Python line-by-line. Understand the algorithm, then implement idiomatically in C++/Obj-C++. Use Python as a spec, not a template.
+- **Copy-paste error handling.** Extract a helper for the repeated try/catch→NSError pattern rather than duplicating it in every method.
+- **Premature optimization.** Profile before writing SIMD intrinsics or Metal compute shaders for operations that aren't bottlenecks. For Whisper, the bottleneck is attention layers (GPU), not mel extraction or tokenization (CPU).
+- **Golden hammer.** Don't route everything through Metal. Tokenization, string processing, file I/O belong on CPU. GPU is for matrix ops, FFT, model inference.
+- **Boat anchor.** Don't build abstractions for features that don't exist yet (e.g., "generic backend" for CUDA support). YAGNI — this targets macOS Apple Silicon only.
+
+---
+
 ## Temporary Files
 
 You can use the `tmp/` subfolder in the current project folder to save any temporary files if needed.
