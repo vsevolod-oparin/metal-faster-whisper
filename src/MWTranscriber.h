@@ -11,6 +11,9 @@ extern NSErrorDomain const MWErrorDomain;
 typedef NS_ENUM(NSInteger, MWErrorCode) {
     MWErrorCodeModelLoadFailed = 1,
     MWErrorCodeEncodeFailed    = 2,
+    MWErrorCodeAudioDecodeFailed = 100,
+    MWErrorCodeAudioFileNotFound = 101,
+    MWErrorCodeAudioTempFileFailed = 102,
 };
 
 /// Compute type for model inference.

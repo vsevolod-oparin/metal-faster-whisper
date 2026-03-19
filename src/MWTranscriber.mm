@@ -1,4 +1,5 @@
 #import "MWTranscriber.h"
+#import "MWConstants.h"
 
 #include <memory>
 #include <string>
@@ -9,9 +10,6 @@
 #include <ctranslate2/types.h>
 
 NSErrorDomain const MWErrorDomain = @"com.metalwhisper.error";
-
-// 30 seconds of audio at 16 kHz with hop_length=160 → 3000 mel spectrogram frames.
-static constexpr ctranslate2::dim_t kMWDefaultChunkFrames = 3000;
 
 static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     switch (type) {

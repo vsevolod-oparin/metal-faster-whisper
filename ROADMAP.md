@@ -113,13 +113,13 @@ Native Objective-C++ port of [faster-whisper](https://github.com/SYSTRAN/faster-
 - M1.6: Microphone live capture via `AVAudioEngine` (for real-time transcription in later milestones)
 
 **Tests:**
-- [ ] `test_m1_wav_decode`: Decode a known WAV file, compare sample count and first 100 samples against Python reference
-- [ ] `test_m1_mp3_decode`: Decode MP3, verify resampling to 16 kHz
-- [ ] `test_m1_m4a_decode`: Decode M4A (common macOS recording format, QuickTime, Voice Memos)
-- [ ] `test_m1_flac_decode`: Decode FLAC (common for podcasts/music)
-- [ ] `test_m1_stereo_mono`: Verify stereo → mono downmix matches Python output
-- [ ] `test_m1_pad_or_trim`: Test padding short audio and trimming long audio
-- [ ] `test_m1_large_file`: 1-hour WAV — verify streaming decode doesn't load entire file into memory
+- [x] `test_m1_wav_decode`: Decode physicsworks.wav (203s, 16kHz mono), exact sample count match and first 100 samples within 1e-4 of Python reference
+- [x] `test_m1_mp3_decode`: Decode hotwords.mp3 (4s, 44.1kHz stereo → 16kHz mono), sample count within 1% of Python reference
+- [x] `test_m1_m4a_decode`: Decode jfk.m4a (11s, AAC), sample count within 5% of FLAC reference
+- [x] `test_m1_flac_decode`: Decode jfk.flac (11s, 44.1kHz stereo → 16kHz mono), exact sample count match and first 100 samples within 1e-4
+- [x] `test_m1_stereo_mono`: Decode stereo_diarization.wav (5s, 16kHz stereo), verify mono output matches Python with AVAudioConverter sum→average normalization
+- [x] `test_m1_pad_or_trim`: Padding short array and trimming long array match Python pad_or_trim exactly
+- [x] `test_m1_large_file`: 83-min MP3 (../data/large.mp3) — 79.8M samples, 304 MB output, RSS growth 1.0x output size (streaming chunked decode confirmed)
 
 **Exit criteria:** Bit-identical (within float32 tolerance) audio waveform vs `decode_audio()` Python output for WAV; close match for lossy formats.
 

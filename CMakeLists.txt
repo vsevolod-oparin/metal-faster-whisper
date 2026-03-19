@@ -22,6 +22,7 @@ find_package(ctranslate2 REQUIRED)
 find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
 find_library(METAL_FRAMEWORK Metal REQUIRED)
 find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
+find_library(AVFOUNDATION_FRAMEWORK AVFoundation REQUIRED)
 
 # ── MetalWhisper shared library ──────────────────────────────────────────────
 file(GLOB MW_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.mm")
@@ -41,6 +42,7 @@ target_link_libraries(MetalWhisper
         ${FOUNDATION_FRAMEWORK}
         ${METAL_FRAMEWORK}
         ${ACCELERATE_FRAMEWORK}
+        ${AVFOUNDATION_FRAMEWORK}
 )
 
 # Disable ARC for all Obj-C++ sources (architecture decision #5)
@@ -68,6 +70,7 @@ foreach(test_source ${MW_TESTS})
         PRIVATE
             MetalWhisper
             ${FOUNDATION_FRAMEWORK}
+            ${AVFOUNDATION_FRAMEWORK}
     )
     target_compile_options(${test_name} PRIVATE -fno-objc-arc)
     set_target_properties(${test_name} PROPERTIES
@@ -87,7 +90,10 @@ install(TARGETS MetalWhisper
 )
 
 # Install public headers
-install(FILES src/MWTranscriber.h
+install(FILES
+    src/MWTranscriber.h
+    src/MWAudioDecoder.h
+    src/MWConstants.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )
 
