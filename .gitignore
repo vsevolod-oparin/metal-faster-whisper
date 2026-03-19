@@ -1,0 +1,30 @@
+# Build directories
+build/
+cmake-build-*/
+
+# IDE
+.idea/
+.vscode/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.swp
+*.swo
+*~
+
+.claude/settings.local.json
+
+# Compiled objects
+*.o
+*.obj
+*.dylib
+*.so
+*.a
+
+# macOS
+**/.DS_Store
+._*
+
+# Temporary files
+tmp/*
+!tmp/.gitkeep
