@@ -16,13 +16,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param nFFT FFT size (default 400)
 /// @param hopLength Hop length in samples (default 160)
 /// @param samplingRate Sample rate (default 16000)
-- (instancetype)initWithNMels:(NSUInteger)nMels
-                         nFFT:(NSUInteger)nFFT
-                    hopLength:(NSUInteger)hopLength
-                 samplingRate:(NSUInteger)samplingRate NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype)initWithNMels:(NSUInteger)nMels
+                                  nFFT:(NSUInteger)nFFT
+                             hopLength:(NSUInteger)hopLength
+                          samplingRate:(NSUInteger)samplingRate NS_DESIGNATED_INITIALIZER;
 
 /// Convenience initializer with default parameters for standard whisper.
-- (instancetype)initWithNMels:(NSUInteger)nMels;
+- (nullable instancetype)initWithNMels:(NSUInteger)nMels;
 
 /// Unavailable — use initWithNMels: or the full designated initializer.
 - (instancetype)init NS_UNAVAILABLE;

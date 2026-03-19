@@ -269,6 +269,7 @@ static void test_m3_roundtrip(MWTokenizer *tok, NSDictionary *ref) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
+        setvbuf(stdout, NULL, _IOLBF, 0);
         fprintf(stdout, "=== M3 Tokenizer Tests ===\n\n");
 
         // Resolve model path

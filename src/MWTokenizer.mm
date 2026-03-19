@@ -28,12 +28,6 @@ static void MWSetError(NSError **error, NSInteger code, NSString *description) {
 /// Tokenizer error code.
 static const NSInteger kMWErrorCodeTokenizerLoadFailed = 200;
 
-/// Number of base vocab tokens in Whisper (GPT-2 base vocab).
-static const size_t kBaseVocabSize = 50257;
-
-/// Offset for special tokens above base vocab.
-static const size_t kSpecialTokenOffset = 1;
-
 /// Timestamp precision in seconds per token.
 static const double kTimestampPrecision = 0.02;
 
@@ -127,7 +121,11 @@ static std::string tokenStringToBytes(
             ++p;
             continue;
         }
-        for (int i = 1; i < len && (p + i) < end; ++i) {
+        // Guard against truncated UTF-8 sequences at buffer end.
+        if (p + len > end) {
+            break;  // Truncated sequence, stop decoding
+        }
+        for (int i = 1; i < len; ++i) {
             cp = (cp << 6) | (p[i] & 0x3F);
         }
         p += len;
@@ -216,7 +214,12 @@ static char32_t decodeUTF8Codepoint(const std::string &s, size_t &pos) {
         cp = c & 0x07; len = 4;
     }
 
-    for (int i = 1; i < len && (pos + i) < s.size(); ++i) {
+    // Clamp to prevent reading past end of string.
+    if (pos + len > s.size()) {
+        pos = s.size();
+        return 0xFFFD;  // Replacement character for truncated sequence
+    }
+    for (int i = 1; i < len; ++i) {
         cp = (cp << 6) | (static_cast<uint8_t>(s[pos + i]) & 0x3F);
     }
     pos += len;
@@ -328,17 +331,17 @@ struct MWTokenizerImpl {
     std::unordered_map<uint8_t, char32_t> b2u;
     std::unordered_map<char32_t, uint8_t> u2b;
 
-    // Special token IDs
-    size_t sot = 0;
-    size_t eot = 0;
-    size_t sotPrev = 0;
-    size_t sotLM = 0;
-    size_t noTimestamps = 0;
-    size_t noSpeech = 0;
-    size_t timestampBegin = 0;
-    size_t transcribeToken = 0;
-    size_t translateToken = 0;
-    size_t languageToken = 0;
+    // Special token IDs (SIZE_MAX = unresolved sentinel)
+    size_t sot = SIZE_MAX;
+    size_t eot = SIZE_MAX;
+    size_t sotPrev = SIZE_MAX;
+    size_t sotLM = SIZE_MAX;
+    size_t noTimestamps = SIZE_MAX;
+    size_t noSpeech = SIZE_MAX;
+    size_t timestampBegin = SIZE_MAX;
+    size_t transcribeToken = SIZE_MAX;
+    size_t translateToken = SIZE_MAX;
+    size_t languageToken = SIZE_MAX;
 
     std::string languageCode;
     bool multilingual = false;
@@ -478,11 +481,13 @@ struct MWTokenizerImpl {
     }
 
     for (NSString *key in vocab) {
-        NSNumber *val = vocab[key];
-        std::string tokenStr = [key UTF8String];
-        size_t tokenID = [val unsignedIntegerValue];
-        _impl->tokenToID[tokenStr] = tokenID;
-        _impl->idToToken[tokenID] = tokenStr;
+        @autoreleasepool {
+            NSNumber *val = vocab[key];
+            std::string tokenStr = [key UTF8String];
+            size_t tokenID = [val unsignedIntegerValue];
+            _impl->tokenToID[tokenStr] = tokenID;
+            _impl->idToToken[tokenID] = tokenStr;
+        }
     }
 
     // Parse model.merges
@@ -493,8 +498,10 @@ struct MWTokenizerImpl {
     }
 
     for (NSUInteger i = 0; i < [merges count]; ++i) {
-        NSString *merge = merges[i];
-        _impl->mergeRanks[[merge UTF8String]] = static_cast<int>(i);
+        @autoreleasepool {
+            NSString *merge = merges[i];
+            _impl->mergeRanks[[merge UTF8String]] = static_cast<int>(i);
+        }
     }
 
     // Parse added_tokens
@@ -515,16 +522,22 @@ struct MWTokenizerImpl {
     _impl->vocabSize = _impl->tokenToID.size();
 
     // Extract special token IDs from added_tokens
-    [self _resolveSpecialTokens];
+    if (![self _resolveSpecialTokens]) {
+        MWSetError(error, kMWErrorCodeTokenizerLoadFailed,
+                   @"Critical special tokens (eot, sot) not found in tokenizer vocabulary");
+        return NO;
+    }
 
     return YES;
 }
 
-- (void)_resolveSpecialTokens {
+/// Resolve special token IDs from vocab.
+/// Returns NO if critical tokens (eot, sot) are missing.
+- (BOOL)_resolveSpecialTokens {
     auto lookup = [&](const std::string &name) -> size_t {
         auto it = _impl->tokenToID.find(name);
         if (it != _impl->tokenToID.end()) return it->second;
-        return 0;
+        return SIZE_MAX;  // Sentinel for not-found
     };
 
     _impl->eot = lookup("<|endoftext|>");
@@ -538,6 +551,12 @@ struct MWTokenizerImpl {
 
     // timestamp_begin is <|0.00|>
     _impl->timestampBegin = lookup("<|0.00|>");
+
+    // Validate critical tokens — eot and sot must be resolved.
+    if (_impl->eot == SIZE_MAX || _impl->sot == SIZE_MAX) {
+        return NO;
+    }
+    return YES;
 }
 
 // ── Non-speech tokens ────────────────────────────────────────────────────────

@@ -5,6 +5,9 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Accelerate/Accelerate.h>
 
+#include <stdexcept>
+#include <climits>
+
 // ── Helper: set NSError if pointer is non-nil ────────────────────────────────
 static void MWSetError(NSError **error, MWErrorCode code, NSString *description) {
     if (error) {
@@ -101,7 +104,8 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
                     if (!ok || inputBuffer.frameLength == 0) {
                         if (readErr) {
                             readError = YES;
-                            fileReadError = readErr;
+                            [fileReadError release];
+                            fileReadError = [readErr retain];
                         }
                         *outStatus = AVAudioConverterInputStatus_EndOfStream;
                         return nil;
@@ -143,9 +147,13 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
             ? [NSString stringWithFormat:@"Audio read/conversion error: %@",
                [fileReadError localizedDescription]]
             : @"Audio read/conversion error";
+        [fileReadError release];
+        fileReadError = nil;
         MWSetError(error, MWErrorCodeAudioDecodeFailed, desc);
         return nil;
     }
+    [fileReadError release];
+    fileReadError = nil;
 
     // AVAudioConverter sums channels when downmixing (e.g., stereo→mono).
     // Normalize by dividing by the number of source channels to produce an
@@ -168,56 +176,77 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
 
 + (nullable NSData *)decodeAudioAtURL:(NSURL *)url
                                 error:(NSError **)error {
-    if (![[NSFileManager defaultManager] fileExistsAtPath:[url path]]) {
-        MWSetError(error, MWErrorCodeAudioFileNotFound,
-                   [NSString stringWithFormat:@"Audio file not found: %@", [url path]]);
+    try {
+        if (![[NSFileManager defaultManager] fileExistsAtPath:[url path]]) {
+            MWSetError(error, MWErrorCodeAudioFileNotFound,
+                       [NSString stringWithFormat:@"Audio file not found: %@", [url path]]);
+            return nil;
+        }
+
+        AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:url error:error];
+        if (!audioFile) {
+            // error is already set by AVAudioFile
+            return nil;
+        }
+
+        NSData *result = MWDecodeAudioFile(audioFile, error);
+        [audioFile release];
+        return result;
+    } catch (const std::exception &e) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Audio decode failed: %s", e.what()]);
+        return nil;
+    } catch (...) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Audio decode failed with unknown error");
         return nil;
     }
-
-    AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:url error:error];
-    if (!audioFile) {
-        // error is already set by AVAudioFile
-        return nil;
-    }
-
-    NSData *result = MWDecodeAudioFile(audioFile, error);
-    [audioFile release];
-    return result;
 }
 
 + (nullable NSData *)decodeAudioFromData:(NSData *)data
                                    error:(NSError **)error {
-    // Write data to a temporary file, decode, then clean up.
-    NSString *tempDir = NSTemporaryDirectory();
-    NSString *tempFileName = [NSString stringWithFormat:@"mw_audio_%@.tmp",
-                              [[NSUUID UUID] UUIDString]];
-    NSString *tempPath = [tempDir stringByAppendingPathComponent:tempFileName];
+    try {
+        // Write data to a temporary file, decode, then clean up.
+        NSString *tempDir = NSTemporaryDirectory();
+        NSString *tempFileName = [NSString stringWithFormat:@"mw_audio_%@.tmp",
+                                  [[NSUUID UUID] UUIDString]];
+        NSString *tempPath = [tempDir stringByAppendingPathComponent:tempFileName];
 
-    BOOL written = [data writeToFile:tempPath atomically:YES];
-    if (!written) {
-        MWSetError(error, MWErrorCodeAudioTempFileFailed,
-                   [NSString stringWithFormat:@"Failed to write temp file: %@", tempPath]);
-        return nil;
-    }
+        BOOL written = [data writeToFile:tempPath atomically:YES];
+        if (!written) {
+            MWSetError(error, MWErrorCodeAudioTempFileFailed,
+                       [NSString stringWithFormat:@"Failed to write temp file: %@", tempPath]);
+            return nil;
+        }
 
-    NSURL *tempURL = [NSURL fileURLWithPath:tempPath];
-    AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:tempURL error:error];
-    if (!audioFile) {
+        NSURL *tempURL = [NSURL fileURLWithPath:tempPath];
+        AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:tempURL error:error];
+        if (!audioFile) {
+            [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+            return nil;
+        }
+
+        NSData *result = MWDecodeAudioFile(audioFile, error);
+        [audioFile release];
+
+        // Clean up temp file regardless of success or failure.
         [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+
+        return result;
+    } catch (const std::exception &e) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Audio decode from data failed: %s", e.what()]);
+        return nil;
+    } catch (...) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Audio decode from data failed with unknown error");
         return nil;
     }
-
-    NSData *result = MWDecodeAudioFile(audioFile, error);
-    [audioFile release];
-
-    // Clean up temp file regardless of success or failure.
-    [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
-
-    return result;
 }
 
 + (nullable NSData *)decodeAudioFromBuffer:(AVAudioPCMBuffer *)buffer
                                      error:(NSError **)error {
+    try {
     if (!buffer || buffer.frameLength == 0) {
         MWSetError(error, MWErrorCodeAudioDecodeFailed, @"Input buffer is empty or nil");
         return nil;
@@ -256,12 +285,27 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
         return nil;
     }
 
-    // Estimate output size.
+    // Estimate output size, guarding against overflow of uint32_t (AVAudioFrameCount).
     double ratio = (double)kMWTargetSampleRate / sourceFormat.sampleRate;
-    AVAudioFrameCount outFrames = (AVAudioFrameCount)(buffer.frameLength * ratio) + 1024;
+    double estimatedFrames = (double)buffer.frameLength * ratio + 1024.0;
+    if (estimatedFrames > (double)UINT32_MAX) {
+        [converter release];
+        [outputFormat release];
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Input buffer too large for conversion");
+        return nil;
+    }
+    AVAudioFrameCount outFrames = (AVAudioFrameCount)estimatedFrames;
     AVAudioPCMBuffer *outputBuffer = [[AVAudioPCMBuffer alloc]
         initWithPCMFormat:outputFormat
             frameCapacity:outFrames];
+    if (!outputBuffer) {
+        [converter release];
+        [outputFormat release];
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Failed to allocate output PCM buffer for conversion");
+        return nil;
+    }
 
     __block BOOL inputConsumed = NO;
     NSError *convError = nil;
@@ -311,9 +355,22 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
     [converter release];
     [outputFormat release];
     return result;
+    } catch (const std::exception &e) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Audio decode from buffer failed: %s", e.what()]);
+        return nil;
+    } catch (...) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Audio decode from buffer failed with unknown error");
+        return nil;
+    }
 }
 
 + (NSData *)padOrTrimAudio:(NSData *)audio toSampleCount:(NSUInteger)sampleCount {
+    // Guard against integer overflow in sampleCount * sizeof(float).
+    if (sampleCount > NSUIntegerMax / sizeof(float)) {
+        return audio;  // Return input unchanged on overflow
+    }
     NSUInteger targetBytes = sampleCount * sizeof(float);
     NSUInteger sourceBytes = [audio length];
 

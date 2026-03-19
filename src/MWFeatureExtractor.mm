@@ -107,20 +107,42 @@ static std::vector<float> generateMelFilters(NSUInteger nMels,
 
 /// Reflect-pad signal at both ends (no edge repetition, matching numpy reflect mode).
 /// For index i < 0: sample[-i]. For index i >= length: sample[2*length - 2 - i].
+/// Uses signed arithmetic throughout to avoid unsigned underflow on short signals.
 static std::vector<float> reflectPad(const float *signal, NSUInteger length,
                                      NSUInteger padLeft, NSUInteger padRight) {
     NSUInteger paddedLength = padLeft + length + padRight;
     std::vector<float> padded(paddedLength);
 
+    // Reflect padding requires at least 2 samples.
+    // Fall back to zero-padding (or constant-padding for length==1).
+    if (length < 2) {
+        std::fill(padded.begin(), padded.end(), 0.0f);
+        if (length == 1) {
+            // Constant pad with the single sample value
+            std::fill(padded.begin(), padded.end(), signal[0]);
+        }
+        if (length >= 1) {
+            memcpy(padded.data() + padLeft, signal, length * sizeof(float));
+        }
+        return padded;
+    }
+
+    NSInteger sLength = (NSInteger)length;
+
     // Left padding (reflected, no edge repeat)
     for (NSUInteger i = 0; i < padLeft; i++) {
-        NSUInteger srcIdx = padLeft - i;  // 1, 2, 3, ... (skip index 0)
-        // Wrap around if srcIdx >= length
-        while (srcIdx >= length) {
-            srcIdx = 2 * (length - 1) - srcIdx;
-            if (srcIdx >= length) {
-                srcIdx = (NSUInteger)(-(NSInteger)srcIdx);
+        NSInteger srcIdx = (NSInteger)(padLeft - i);  // 1, 2, 3, ...
+        // Wrap into valid range [0, length-1] using reflect (no edge repeat)
+        // Period is 2*(length-1). Map into [0, period), then fold.
+        NSInteger period = 2 * (sLength - 1);
+        if (period > 0) {
+            srcIdx = srcIdx % period;
+            if (srcIdx < 0) srcIdx += period;
+            if (srcIdx >= sLength) {
+                srcIdx = period - srcIdx;
             }
+        } else {
+            srcIdx = 0;
         }
         padded[i] = signal[srcIdx];
     }
@@ -130,13 +152,17 @@ static std::vector<float> reflectPad(const float *signal, NSUInteger length,
 
     // Right padding (reflected, no edge repeat)
     for (NSUInteger i = 0; i < padRight; i++) {
-        NSUInteger srcIdx = length - 2 - i;  // length-2, length-3, ...
-        // Wrap around for short signals
-        while (srcIdx >= length) {
-            srcIdx = (NSUInteger)(-(NSInteger)srcIdx);
-            if (srcIdx >= length) {
-                srcIdx = 2 * (length - 1) - srcIdx;
+        NSInteger srcIdx = sLength - 2 - (NSInteger)i;  // length-2, length-3, ...
+        // Wrap into valid range [0, length-1] using reflect (no edge repeat)
+        NSInteger period = 2 * (sLength - 1);
+        if (period > 0) {
+            srcIdx = srcIdx % period;
+            if (srcIdx < 0) srcIdx += period;
+            if (srcIdx >= sLength) {
+                srcIdx = period - srcIdx;
             }
+        } else {
+            srcIdx = 0;
         }
         padded[padLeft + length + i] = signal[srcIdx];
     }
@@ -151,7 +177,10 @@ static std::vector<float> reflectPad(const float *signal, NSUInteger length,
 // Uses vDSP_fft_zip (complex-to-complex FFT) for the convolution.
 
 /// Compute the smallest power of 2 >= n.
+/// Returns 0 if the result would overflow NSUInteger.
 static NSUInteger nextPowerOf2(NSUInteger n) {
+    if (n == 0) return 1;
+    if (n > (NSUIntegerMax >> 1) + 1) return 0;  // overflow guard
     NSUInteger p = 1;
     while (p < n) p <<= 1;
     return p;
@@ -179,6 +208,17 @@ struct BluesteinDFT {
     // Precomputed FFT of the conjugate chirp sequence (split complex, length M).
     std::vector<float> bFFTReal;
     std::vector<float> bFFTImag;
+
+    // Pre-computed conjugate chirp imaginary (negated chirpImag) for step 5.
+    std::vector<float> chirpConjImag;
+
+    // Work buffers (reused across calls to executeBluesteinDFT).
+    // NOTE: Reusing these makes executeBluesteinDFT non-thread-safe for the
+    // same BluesteinDFT context. Each thread must use its own context.
+    std::vector<float> workAR;
+    std::vector<float> workAI;
+    std::vector<float> workCR;
+    std::vector<float> workCI;
 };
 
 /// Create a Bluestein DFT context for length N.
@@ -186,6 +226,10 @@ static BluesteinDFT *createBluesteinDFT(NSUInteger N) {
     BluesteinDFT *ctx = new BluesteinDFT();
     ctx->N = N;
     ctx->M = nextPowerOf2(2 * N - 1);
+    if (ctx->M == 0) {
+        delete ctx;
+        return nullptr;
+    }
     ctx->log2M = log2OfPow2(ctx->M);
 
     ctx->fftSetup = vDSP_create_fftsetup(ctx->log2M, kFFTRadix2);
@@ -227,6 +271,18 @@ static BluesteinDFT *createBluesteinDFT(NSUInteger N) {
     bSplit.imagp = ctx->bFFTImag.data();
     vDSP_fft_zip(ctx->fftSetup, &bSplit, 1, ctx->log2M, kFFTDirection_Forward);
 
+    // Pre-compute conjugate chirp imaginary for step 5 (negated chirpImag).
+    ctx->chirpConjImag.resize(N);
+    for (NSUInteger n = 0; n < N; n++) {
+        ctx->chirpConjImag[n] = -ctx->chirpImag[n];
+    }
+
+    // Pre-allocate work buffers for executeBluesteinDFT reuse.
+    ctx->workAR.resize(ctx->M, 0.0f);
+    ctx->workAI.resize(ctx->M, 0.0f);
+    ctx->workCR.resize(ctx->M);
+    ctx->workCI.resize(ctx->M);
+
     return ctx;
 }
 
@@ -243,54 +299,55 @@ static void destroyBluesteinDFT(BluesteinDFT *ctx) {
 /// Execute Bluestein DFT: compute N-point DFT of real input.
 /// Input: real-valued signal of length N.
 /// Output: complex spectrum (outReal, outImag) of length N.
-static void executeBluesteinDFT(const BluesteinDFT *ctx,
+///
+/// NOTE: Uses pre-allocated work buffers in ctx, making this function
+/// non-thread-safe for the same BluesteinDFT context. Each thread must
+/// use its own context instance.
+static void executeBluesteinDFT(BluesteinDFT *ctx,
                                 const float *inputReal,
                                 float *outReal, float *outImag) {
     NSUInteger N = ctx->N;
     NSUInteger M = ctx->M;
+    float *aR = ctx->workAR.data();
+    float *aI = ctx->workAI.data();
+    float *cR = ctx->workCR.data();
+    float *cI = ctx->workCI.data();
 
-    // Step 1: a[n] = x[n] * chirp[n] for n=0..N-1, zero-pad to M
-    std::vector<float> aR(M, 0.0f);
-    std::vector<float> aI(M, 0.0f);
-    for (NSUInteger n = 0; n < N; n++) {
-        aR[n] = inputReal[n] * ctx->chirpReal[n];
-        aI[n] = inputReal[n] * ctx->chirpImag[n];
-    }
+    // Step 1: a[n] = x[n] * chirp[n] for n=0..N-1, vectorized
+    vDSP_vmul(inputReal, 1, ctx->chirpReal.data(), 1, aR, 1, (vDSP_Length)N);
+    vDSP_vmul(inputReal, 1, ctx->chirpImag.data(), 1, aI, 1, (vDSP_Length)N);
+    // Zero-pad tail [N..M)
+    vDSP_vclr(aR + N, 1, (vDSP_Length)(M - N));
+    vDSP_vclr(aI + N, 1, (vDSP_Length)(M - N));
 
     // Step 2: FFT of a using vDSP_fft_zip (complex-to-complex, in-place)
-    DSPSplitComplex aSplit;
-    aSplit.realp = aR.data();
-    aSplit.imagp = aI.data();
+    DSPSplitComplex aSplit = { aR, aI };
     vDSP_fft_zip(ctx->fftSetup, &aSplit, 1, ctx->log2M, kFFTDirection_Forward);
 
-    // Step 3: Pointwise complex multiply A_FFT * B_FFT
-    std::vector<float> cR(M);
-    std::vector<float> cI(M);
-    for (NSUInteger k = 0; k < M; k++) {
-        float ar = aR[k], ai = aI[k];
-        float br = ctx->bFFTReal[k], bi = ctx->bFFTImag[k];
-        cR[k] = ar * br - ai * bi;
-        cI[k] = ar * bi + ai * br;
-    }
+    // Step 3: Pointwise complex multiply A_FFT * B_FFT, vectorized
+    // vDSP_zvmul with conjugate=+1 computes C = A * B (no conjugation).
+    DSPSplitComplex bSplit = { ctx->bFFTReal.data(), ctx->bFFTImag.data() };
+    DSPSplitComplex cSplit = { cR, cI };
+    vDSP_zvmul(&aSplit, 1, &bSplit, 1, &cSplit, 1, (vDSP_Length)M, /*conjugate=*/+1);
 
     // Step 4: Inverse FFT of product
-    DSPSplitComplex cSplit;
-    cSplit.realp = cR.data();
-    cSplit.imagp = cI.data();
     vDSP_fft_zip(ctx->fftSetup, &cSplit, 1, ctx->log2M, kFFTDirection_Inverse);
 
     // vDSP_fft_zip inverse does NOT divide by M, so scale by 1/M.
     float invM = 1.0f / (float)M;
 
-    // Step 5: result[k] = (c[k] / M) * conj(chirp[k])
-    for (NSUInteger k = 0; k < N; k++) {
-        float cr = cR[k] * invM;
-        float ci = cI[k] * invM;
-        float conjR = ctx->chirpReal[k];
-        float conjI = -ctx->chirpImag[k];
-        outReal[k] = cr * conjR - ci * conjI;
-        outImag[k] = cr * conjI + ci * conjR;
-    }
+    // Step 5: Scale c by 1/M, then multiply by conj(chirp), vectorized.
+    // Scale first N elements of c by invM.
+    vDSP_vsmul(cR, 1, &invM, cR, 1, (vDSP_Length)N);
+    vDSP_vsmul(cI, 1, &invM, cI, 1, (vDSP_Length)N);
+    // Multiply scaled c * conj(chirp).
+    // vDSP_zvmul with conjugate=-1 computes C = conj(A) * B.
+    // To get c * conj(chirp), pass chirp as A and c as B with conjugate=-1:
+    //   C = conj(chirp) * cScaled = cScaled * conj(chirp).
+    DSPSplitComplex cScaled = { cR, cI };
+    DSPSplitComplex chirpSplit = { ctx->chirpReal.data(), ctx->chirpImag.data() };
+    DSPSplitComplex outSplit = { outReal, outImag };
+    vDSP_zvmul(&chirpSplit, 1, &cScaled, 1, &outSplit, 1, (vDSP_Length)N, /*conjugate=*/-1);
 }
 
 // ── Implementation ──────────────────────────────────────────────────────────
@@ -313,6 +370,15 @@ static void executeBluesteinDFT(const BluesteinDFT *ctx,
                  samplingRate:(NSUInteger)samplingRate {
     self = [super init];
     if (self) {
+        // Validate parameters to prevent division by zero and other undefined behavior.
+        if (nFFT == 0 || hopLength == 0 || samplingRate == 0 || nMels == 0) {
+            NSLog(@"MWFeatureExtractor: Invalid parameters (nFFT=%lu, hop=%lu, sr=%lu, mels=%lu)",
+                  (unsigned long)nFFT, (unsigned long)hopLength,
+                  (unsigned long)samplingRate, (unsigned long)nMels);
+            [self release];
+            return nil;
+        }
+
         _nMels = nMels;
         _nFFT = nFFT;
         _hopLength = hopLength;
@@ -379,8 +445,20 @@ static void executeBluesteinDFT(const BluesteinDFT *ctx,
                                         frameCount:(NSUInteger &)outFrameCount {
     NSUInteger nFreqs = _nFFT / 2 + 1;
 
+    // Guard: signal must be long enough for at least 2 STFT frames
+    // (we drop the last frame, so need totalFrames >= 2).
+    if (signalLength <= _nFFT) {
+        outFrameCount = 0;
+        return std::vector<float>();
+    }
+
     // Number of STFT frames (before dropping last)
     NSUInteger totalFrames = (signalLength - _nFFT) / _hopLength + 1;
+
+    if (totalFrames < 2) {
+        outFrameCount = 0;
+        return std::vector<float>();
+    }
 
     // Drop last frame to match Python stft[..., :-1]
     NSUInteger nFrames = totalFrames - 1;
@@ -406,11 +484,10 @@ static void executeBluesteinDFT(const BluesteinDFT *ctx,
                             windowedFrame.data(),
                             outReal.data(), outImag.data());
 
-        // Extract magnitude squared for bins 0..nFFT/2
+        // Extract magnitude squared for bins 0..nFFT/2, vectorized
         float *magRow = magnitudes.data() + f * nFreqs;
-        for (NSUInteger k = 0; k < nFreqs; k++) {
-            magRow[k] = outReal[k] * outReal[k] + outImag[k] * outImag[k];
-        }
+        DSPSplitComplex sc = { outReal.data(), outImag.data() };
+        vDSP_zvmags(&sc, 1, magRow, 1, (vDSP_Length)nFreqs);
     }
 
     return magnitudes;
