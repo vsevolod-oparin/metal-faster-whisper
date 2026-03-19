@@ -1,0 +1,9 @@
+{
+  "source": "physicsworks.wav first 5s",
+  "input_samples": 80000,
+  "n_mels": 80,
+  "shape": [
+    80,
+    501
+  ]
+}

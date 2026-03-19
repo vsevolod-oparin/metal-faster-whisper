@@ -1,0 +1,15 @@
+{
+  "n_fft": 400,
+  "hop_length": 160,
+  "sr": 16000,
+  "signal_samples": 16000,
+  "stft_shape": [
+    201,
+    101
+  ],
+  "magnitudes_sq_shape": [
+    201,
+    100
+  ],
+  "dtype": "float32"
+}

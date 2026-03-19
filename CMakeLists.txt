@@ -71,6 +71,7 @@ foreach(test_source ${MW_TESTS})
             MetalWhisper
             ${FOUNDATION_FRAMEWORK}
             ${AVFOUNDATION_FRAMEWORK}
+            ${ACCELERATE_FRAMEWORK}
     )
     target_compile_options(${test_name} PRIVATE -fno-objc-arc)
     set_target_properties(${test_name} PROPERTIES
@@ -93,6 +94,7 @@ install(TARGETS MetalWhisper
 install(FILES
     src/MWTranscriber.h
     src/MWAudioDecoder.h
+    src/MWFeatureExtractor.h
     src/MWConstants.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )

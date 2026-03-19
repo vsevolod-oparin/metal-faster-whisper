@@ -1,0 +1,10 @@
+{
+  "source": "physicsworks.wav first 30s",
+  "n_mels": 128,
+  "shape": [
+    128,
+    3001
+  ],
+  "max_val": 1.2741483449935913,
+  "min_val": -0.7258516550064087
+}
