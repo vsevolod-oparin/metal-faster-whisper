@@ -76,6 +76,7 @@ foreach(test_source ${MW_TESTS})
             ${ACCELERATE_FRAMEWORK}
             ${COMPRESSION_LIB}
     )
+    target_include_directories(${test_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     target_compile_options(${test_name} PRIVATE -fno-objc-arc)
     set_target_properties(${test_name} PROPERTIES
         INSTALL_RPATH "@loader_path/../lib"
@@ -100,6 +101,7 @@ install(FILES
     src/MWFeatureExtractor.h
     src/MWConstants.h
     src/MWTokenizer.h
+    src/MWHelpers.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )
 

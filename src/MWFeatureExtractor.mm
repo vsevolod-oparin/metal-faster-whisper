@@ -1,6 +1,7 @@
 #import "MWFeatureExtractor.h"
 #import "MWConstants.h"
 #import "MWTranscriber.h"  // For MWErrorDomain and MWErrorCode
+#import "MWHelpers.h"
 
 #define ACCELERATE_NEW_LAPACK
 #import <Accelerate/Accelerate.h>
@@ -372,7 +373,7 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
     if (self) {
         // Validate parameters to prevent division by zero and other undefined behavior.
         if (nFFT == 0 || hopLength == 0 || samplingRate == 0 || nMels == 0) {
-            NSLog(@"MWFeatureExtractor: Invalid parameters (nFFT=%lu, hop=%lu, sr=%lu, mels=%lu)",
+            MWLog(@"MWFeatureExtractor: Invalid parameters (nFFT=%lu, hop=%lu, sr=%lu, mels=%lu)",
                   (unsigned long)nFFT, (unsigned long)hopLength,
                   (unsigned long)samplingRate, (unsigned long)nMels);
             [self release];
@@ -402,7 +403,7 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
         // power-of-2 FFT of length M >= 2N-1.
         _bluesteinCtx = createBluesteinDFT(nFFT);
         if (!_bluesteinCtx) {
-            NSLog(@"MWFeatureExtractor: Failed to create Bluestein DFT for n_fft=%lu",
+            MWLog(@"MWFeatureExtractor: Failed to create Bluestein DFT for n_fft=%lu",
                   (unsigned long)nFFT);
             [self release];
             return nil;

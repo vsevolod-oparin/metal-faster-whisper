@@ -50,3 +50,6 @@ static const float kMWTimePrecision = 0.02f;
 
 /// Maximum generation length in tokens.
 static const NSUInteger kMWMaxGenerationLength = 448;
+
+/// Encoder output frames = kMWDefaultChunkFrames / kMWInputStride.
+static const NSUInteger kMWEncoderOutputFrames = 1500;

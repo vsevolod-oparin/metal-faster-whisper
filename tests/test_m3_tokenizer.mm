@@ -1,21 +1,10 @@
 #import <Foundation/Foundation.h>
 #import "MWTokenizer.h"
+#import "MWTestCommon.h"
 
-// ── Test infrastructure ──────────────────────────────────────────────────────
+// ── Test-local state ────────────────────────────────────────────────────────
 
-static int gPassCount = 0;
-static int gFailCount = 0;
 static NSString *gModelPath = nil;
-
-static void reportResult(const char *testName, BOOL passed, NSString *detail) {
-    if (passed) {
-        fprintf(stdout, "  PASS: %s\n", testName);
-        gPassCount++;
-    } else {
-        fprintf(stdout, "  FAIL: %s — %s\n", testName, [detail UTF8String]);
-        gFailCount++;
-    }
-}
 
 // ── Reference data loading ───────────────────────────────────────────────────
 
