@@ -612,7 +612,7 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - [ ] M12.5: Homebrew formula
 - [ ] M12.6: CI/CD (GitHub Actions)
 - [ ] M12.10: Code signing + notarization — requires Apple Developer account
-- [ ] M12.11: Model unload/rel oad API — expose CTranslate2 `unload_model()` for memory management
+- [x] M12.11: Model unload/reload API — `unloadModel` frees GPU memory, `reloadModel:` restores from disk, `isModelLoaded` property. Guards on all transcription entry points
 
 **Exit criteria:** Documentation complete. Example app done. SPM, Homebrew, CI/CD, signing deferred.
 

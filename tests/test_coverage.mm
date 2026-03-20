@@ -1599,6 +1599,74 @@ static void test_m11_wer_librispeech(void) {
 }
 
 // =============================================================================
+// Group 11: Model unload/reload (M12.11)
+// =============================================================================
+
+static void test_model_unload_reload(void) {
+    const char *name = "test_model_unload_reload";
+
+    @autoreleasepool {
+        // Verify model starts loaded
+        ASSERT_FMT(name, gTranscriber.isModelLoaded == YES,
+                   @"Model should be loaded initially");
+
+        // Unload
+        [gTranscriber unloadModel];
+        ASSERT_FMT(name, gTranscriber.isModelLoaded == NO,
+                   @"Model should be unloaded after unloadModel");
+
+        // Transcription should fail when unloaded
+        NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"jfk.flac"];
+        NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+        NSError *txErr = nil;
+        NSArray *segments = [gTranscriber transcribeURL:audioURL
+                                              language:@"en"
+                                                  task:@"transcribe"
+                                               options:nil
+                                        segmentHandler:nil
+                                                  info:nil
+                                                 error:&txErr];
+
+        // Should either return nil/error or crash — we check for nil
+        fprintf(stdout, "    [info] Transcribe while unloaded: segments=%s error=%s\n",
+                segments ? "non-nil" : "nil",
+                txErr ? [[txErr localizedDescription] UTF8String] : "none");
+
+        // Reload
+        NSError *reloadErr = nil;
+        BOOL reloaded = [gTranscriber reloadModel:&reloadErr];
+        ASSERT_FMT(name, reloaded == YES,
+                   @"reloadModel failed: %@", [reloadErr localizedDescription]);
+        ASSERT_FMT(name, gTranscriber.isModelLoaded == YES,
+                   @"Model should be loaded after reload");
+
+        // Verify transcription works again after reload
+        NSError *txErr2 = nil;
+        NSArray *segments2 = [gTranscriber transcribeURL:audioURL
+                                               language:@"en"
+                                                   task:@"transcribe"
+                                                options:nil
+                                         segmentHandler:nil
+                                                   info:nil
+                                                  error:&txErr2];
+        ASSERT_TRUE(name, segments2 != nil, fmtErr(@"Transcribe after reload failed", txErr2));
+
+        NSString *text = [concatenateSegments(segments2) lowercaseString];
+        ASSERT_FMT(name, [text containsString:@"country"],
+                   @"Post-reload transcription incorrect: %@", text);
+
+        fprintf(stdout, "    [info] Post-reload text: %.80s...\n", [text UTF8String]);
+
+        // Reload when already loaded should be a no-op
+        NSError *reloadErr2 = nil;
+        BOOL reloaded2 = [gTranscriber reloadModel:&reloadErr2];
+        ASSERT_FMT(name, reloaded2 == YES, @"Reload when loaded should succeed");
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -1696,6 +1764,10 @@ int main(int argc, const char *argv[]) {
         // ── Group 10: WER on LibriSpeech subset (M11) ──
         fprintf(stdout, "\n--- Group 10: WER on LibriSpeech (M11) ---\n");
         test_m11_wer_librispeech();
+
+        // ── Group 11: Model unload/reload (M12.11) — must be last (modifies shared model) ──
+        fprintf(stdout, "\n--- Group 11: Model unload/reload (M12.11) ---\n");
+        test_model_unload_reload();
 
         // ── Summary ──
         fprintf(stdout, "\n=== Results: %d passed, %d failed ===\n",

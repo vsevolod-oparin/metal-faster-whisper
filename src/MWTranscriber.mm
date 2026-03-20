@@ -35,6 +35,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     std::unique_ptr<ctranslate2::models::Whisper> _whisperCPU;  // CPU pool for align()
 
     NSString *_modelPath;
+    MWComputeType _computeType;
     MWFeatureExtractor *_featureExtractor;
     MWTokenizer *_tokenizer;
 
@@ -66,8 +67,9 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     self = [super init];
     if (!self) return nil;
 
-    // Save model path for creating tokenizers later.
+    // Save model path and compute type for reload.
     _modelPath = [modelPath retain];
+    _computeType = computeType;
 
     // Step 1: Load CTranslate2 model
     try {
@@ -265,6 +267,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 - (nullable NSData *)encodeFeatures:(NSData *)melSpectrogram
                             nFrames:(NSUInteger)nFrames
                               error:(NSError **)error {
+    if (!_whisper) {
+        MWSetError(error, MWErrorCodeModelLoadFailed, @"Model is not loaded.");
+        return nil;
+    }
     try {
         if (nFrames == 0) {
             MWSetError(error, MWErrorCodeEncodeFailed, @"nFrames must be > 0");
@@ -1577,6 +1583,12 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                  segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
                                                            info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
                                                           error:(NSError **)error {
+    if (!_whisper) {
+        MWSetError(error, MWErrorCodeModelLoadFailed,
+                   @"Model is not loaded. Call reloadModel: first.");
+        return nil;
+    }
+
     if (!options) options = @{};
 
     // Handle empty/nil audio gracefully.
@@ -2194,6 +2206,12 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                         segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *, BOOL *))segmentHandler
                                                                   info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
                                                                  error:(NSError **)error {
+    if (!_whisper) {
+        MWSetError(error, MWErrorCodeModelLoadFailed,
+                   @"Model is not loaded. Call reloadModel: first.");
+        return nil;
+    }
+
     if (!options) options = @{};
     if (batchSize == 0) batchSize = 8;
 
@@ -2935,6 +2953,51 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         MWSetError(error, MWErrorCodeEncodeFailed,
                    @"Encode failed: unknown exception");
         return nil;
+    }
+}
+
+// ── Model lifecycle ──────────────────────────────────────────────────────────
+
+- (BOOL)isModelLoaded {
+    return _whisper != nullptr;
+}
+
+- (void)unloadModel {
+    @synchronized (self) {
+        _whisperCPU.reset();
+        _whisper.reset();
+    }
+    MWLog(@"[MetalWhisper] Model unloaded — GPU memory freed");
+}
+
+- (BOOL)reloadModel:(NSError **)error {
+    @synchronized (self) {
+        if (_whisper) {
+            // Already loaded — no-op.
+            return YES;
+        }
+
+        try {
+            const std::string path = [_modelPath UTF8String];
+            const auto ct2Type = mwComputeTypeToCT2(_computeType);
+
+            _whisper = std::make_unique<ctranslate2::models::Whisper>(
+                path,
+                ctranslate2::Device::MPS,
+                ct2Type,
+                std::vector<int>{0},
+                false
+            );
+
+            MWLog(@"[MetalWhisper] Model reloaded: multilingual=%d  n_mels=%zu",
+                  self.isMultilingual, (size_t)self.nMels);
+            return YES;
+
+        } catch (const std::exception& e) {
+            MWSetError(error, MWErrorCodeModelLoadFailed,
+                       [NSString stringWithFormat:@"Failed to reload model: %s", e.what()]);
+            return NO;
+        }
     }
 }
 

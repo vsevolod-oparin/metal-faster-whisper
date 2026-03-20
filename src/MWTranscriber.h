@@ -408,6 +408,23 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                 MWTranscriptionInfo * _Nullable info,
                                 NSError * _Nullable error))completionHandler;
 
+// --- Model lifecycle ---
+
+/// Whether the model is currently loaded in memory (GPU).
+/// Returns NO after `unloadModel` and YES after `reloadModel:`.
+@property (nonatomic, readonly) BOOL isModelLoaded;
+
+/// Unload the model from GPU memory.
+/// After this call, `isModelLoaded` returns NO and all transcription methods
+/// will return an error. Call `reloadModel:` to restore.
+/// This is useful for freeing GPU memory when switching between models.
+- (void)unloadModel;
+
+/// Reload the model from disk, restoring GPU memory.
+/// Uses the same model path and compute type from initialization.
+/// Returns NO and sets *error if reloading fails.
+- (BOOL)reloadModel:(NSError **)error;
+
 // --- M0 test method (backward compat) ---
 
 /// Quick test: encode 30s of silence, return output shape as a string

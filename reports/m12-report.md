@@ -39,7 +39,7 @@ Created comprehensive documentation and example apps for MetalWhisper: README, A
 | M12.9: Man page | Done |
 | M12.release: Release packaging | Done — `scripts/build_release.sh` → standalone tarball with CLI, dylibs, headers, framework, VAD model |
 | M12.10: Code signing | Deferred — no Developer account |
-| M12.11: Model unload/reload | Deferred |
+| M12.11: Model unload/reload | Done — `unloadModel`, `reloadModel:`, `isModelLoaded`. Guards on transcribeAudio/Batched/encode. Test in test_coverage.mm |
 
 ## All 12 ROADMAP Milestones Complete
 
