@@ -543,6 +543,18 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                      withoutTimestamps:(BOOL)withoutTimestamps
                                                 prefix:(nullable NSString *)prefix
                                               hotwords:(nullable NSString *)hotwords {
+    return [self buildPromptWithPreviousTokens:previousTokens
+                             withoutTimestamps:withoutTimestamps
+                                        prefix:prefix
+                                      hotwords:hotwords
+                                     tokenizer:_tokenizer];
+}
+
+- (NSArray<NSNumber *> *)buildPromptWithPreviousTokens:(nullable NSArray<NSNumber *> *)previousTokens
+                                     withoutTimestamps:(BOOL)withoutTimestamps
+                                                prefix:(nullable NSString *)prefix
+                                              hotwords:(nullable NSString *)hotwords
+                                             tokenizer:(MWTokenizer *)tok {
     NSMutableArray<NSNumber *> *prompt = [[NSMutableArray alloc] init];
     NSUInteger halfMax = _maxLength / 2;  // 224
 
@@ -554,13 +566,13 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 
     // Step 1: previous tokens / hotwords preamble
     if (hasPrevious || (hasHotwords && !hasPrefix)) {
-        [prompt addObject:@(_tokenizer.sotPrev)];
+        [prompt addObject:@(tok.sotPrev)];
 
         if (hasHotwords && !hasPrefix) {
             NSString *trimmedHotwords = [hotwords stringByTrimmingCharactersInSet:
                                          [NSCharacterSet whitespaceAndNewlineCharacterSet]];
             NSString *hotwordsInput = [@" " stringByAppendingString:trimmedHotwords];
-            NSArray<NSNumber *> *hotwordsTokens = [_tokenizer encode:hotwordsInput];
+            NSArray<NSNumber *> *hotwordsTokens = [tok encode:hotwordsInput];
             if ([hotwordsTokens count] >= halfMax) {
                 hotwordsTokens = [hotwordsTokens subarrayWithRange:NSMakeRange(0, halfMax - 1)];
             }
@@ -578,12 +590,12 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         }
     }
 
-    // Step 2: SOT sequence
-    [prompt addObjectsFromArray:_tokenizer.sotSequence];
+    // Step 2: SOT sequence (uses the passed tokenizer's language/task tokens)
+    [prompt addObjectsFromArray:tok.sotSequence];
 
     // Step 3: no-timestamps flag
     if (withoutTimestamps) {
-        [prompt addObject:@(_tokenizer.noTimestamps)];
+        [prompt addObject:@(tok.noTimestamps)];
     }
 
     // Step 4: prefix
@@ -591,13 +603,13 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         NSString *trimmedPrefix = [prefix stringByTrimmingCharactersInSet:
                                    [NSCharacterSet whitespaceAndNewlineCharacterSet]];
         NSString *prefixInput = [@" " stringByAppendingString:trimmedPrefix];
-        NSArray<NSNumber *> *prefixTokens = [_tokenizer encode:prefixInput];
+        NSArray<NSNumber *> *prefixTokens = [tok encode:prefixInput];
         if ([prefixTokens count] >= halfMax) {
             prefixTokens = [prefixTokens subarrayWithRange:NSMakeRange(0, halfMax - 1)];
         }
 
         if (!withoutTimestamps) {
-            [prompt addObject:@(_tokenizer.timestampBegin)];
+            [prompt addObject:@(tok.timestampBegin)];
         }
         [prompt addObjectsFromArray:prefixTokens];
     }
@@ -1578,7 +1590,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             NSArray<NSNumber *> *prompt = [self buildPromptWithPreviousTokens:previousTokens
                                                             withoutTimestamps:withoutTimestamps
                                                                        prefix:prefix
-                                                                     hotwords:hotwords];
+                                                                     hotwords:hotwords
+                                                                    tokenizer:loopTokenizer];
 
             // e) Generate with fallback.
             NSError *genError = nil;

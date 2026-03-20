@@ -228,6 +228,13 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                                 prefix:(nullable NSString *)prefix
                                               hotwords:(nullable NSString *)hotwords;
 
+/// Build prompt using a specific tokenizer (for per-segment language control).
+- (NSArray<NSNumber *> *)buildPromptWithPreviousTokens:(nullable NSArray<NSNumber *> *)previousTokens
+                                     withoutTimestamps:(BOOL)withoutTimestamps
+                                                prefix:(nullable NSString *)prefix
+                                              hotwords:(nullable NSString *)hotwords
+                                             tokenizer:(MWTokenizer *)tokenizer;
+
 /// Build the full suppressed tokens list for a decode step.
 /// If suppressTokens contains -1, it is expanded to the model's default suppress_ids
 /// plus the tokenizer's non_speech_tokens.
