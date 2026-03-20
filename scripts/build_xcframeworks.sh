@@ -103,6 +103,18 @@ mkdir -p "$MW_FW/Headers" "$MW_FW/Modules"
 cp "$BUILD_DIR/libMetalWhisper.0.1.0.dylib" "$MW_FW/MetalWhisper"
 install_name_tool -id "@rpath/MetalWhisper.framework/MetalWhisper" "$MW_FW/MetalWhisper" 2>/dev/null || true
 
+# Rewrite dependency references to match xcframework names.
+# MetalWhisper references @rpath/libctranslate2.mps.4.dylib → @rpath/CTranslate2.framework/CTranslate2
+# MetalWhisper references @rpath/libonnxruntime.1.21.0.dylib → @rpath/OnnxRuntime.framework/OnnxRuntime
+CT2_OLD=$(otool -L "$MW_FW/MetalWhisper" | grep -o '@rpath/libctranslate2[^ ]*' | head -1)
+ORT_OLD=$(otool -L "$MW_FW/MetalWhisper" | grep -o '@rpath/libonnxruntime[^ ]*' | head -1)
+if [ -n "$CT2_OLD" ]; then
+    install_name_tool -change "$CT2_OLD" "@rpath/CTranslate2.framework/CTranslate2" "$MW_FW/MetalWhisper"
+fi
+if [ -n "$ORT_OLD" ]; then
+    install_name_tool -change "$ORT_OLD" "@rpath/OnnxRuntime.framework/OnnxRuntime" "$MW_FW/MetalWhisper"
+fi
+
 # Copy public headers
 for h in MetalWhisper.h MWTranscriber.h MWTranscriptionOptions.h MWAudioDecoder.h \
          MWFeatureExtractor.h MWTokenizer.h MWVoiceActivityDetector.h \

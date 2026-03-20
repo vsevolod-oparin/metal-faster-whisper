@@ -30,9 +30,10 @@ Generated: 2026-03-21
 | test_deferred | 10 | Mixed | Load tiny, clip timestamps, translate, hallucination, multilingual batch, CLI batch/stdin, long audio, prompt reset, error recovery |
 | test_coverage | 22 | Mixed | Zero-coverage APIs, CLI edge cases, config combos, Python reference comparison, French detection, large-v3 (gated), M5 alignment, M7 concurrent, M11 WER |
 | test_m10_swift | 3 | M10 | Swift basic transcription, streaming segmentHandler, cancel via stop flag |
+| test_spm.sh | 4 | M12.4 | SPM package describe, consumer build, API access, transcription |
 | test_benchmark | -- | Perf | Benchmark suite (not counted as pass/fail tests) |
 
-**Total: ~181 tests across 25 test binaries** (22 in test_coverage + 3 in test_m10_swift)
+**Total: ~185 tests across 26 test suites** (22 in test_coverage + 3 in test_m10_swift + 4 in test_spm.sh)
 
 ## Unimplemented Tests -- Final Status
 

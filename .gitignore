@@ -1,6 +1,8 @@
 # Build directories
 build/
 cmake-build-*/
+.build/
+.swiftpm/
 
 # IDE
 .idea/
