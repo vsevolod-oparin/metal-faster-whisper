@@ -38,7 +38,12 @@
         _hotwords = nil;
         _prefix = nil;
 
+        _languageDetectionSegments = 1;
+        _languageDetectionThreshold = 0.5f;
+
         _multilingual = NO;
+
+        _maxNewTokens = 0;
 
         _vadFilter = NO;
         _vadModelPath = nil;
@@ -160,7 +165,12 @@
     [copy->_prefix release];
     copy->_prefix = [_prefix copy];
 
+    copy->_languageDetectionSegments = _languageDetectionSegments;
+    copy->_languageDetectionThreshold = _languageDetectionThreshold;
+
     copy->_multilingual = _multilingual;
+
+    copy->_maxNewTokens = _maxNewTokens;
 
     copy->_vadFilter = _vadFilter;
     [copy->_vadModelPath release];
@@ -223,7 +233,12 @@
         dict[@"prefix"] = _prefix;
     }
 
+    dict[@"languageDetectionSegments"] = @(_languageDetectionSegments);
+    dict[@"languageDetectionThreshold"] = @(_languageDetectionThreshold);
+
     dict[@"multilingual"] = @(_multilingual);
+
+    dict[@"maxNewTokens"] = @(_maxNewTokens);
 
     dict[@"vadFilter"] = @(_vadFilter);
     if (_vadModelPath) {

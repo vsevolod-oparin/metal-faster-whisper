@@ -278,6 +278,7 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                            suppressTokens:(nullable NSArray<NSNumber *> *)suppressTokens
                                             suppressBlank:(BOOL)suppressBlank
                                       maxInitialTimestamp:(float)maxInitialTimestamp
+                                            maxNewTokens:(NSUInteger)maxNewTokens
                                                     error:(NSError **)error;
 
 // --- Segment Splitting ---

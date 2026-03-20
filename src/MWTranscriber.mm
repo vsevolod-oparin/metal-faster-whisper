@@ -687,6 +687,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                            suppressTokens:(nullable NSArray<NSNumber *> *)suppressTokens
                                             suppressBlank:(BOOL)suppressBlank
                                       maxInitialTimestamp:(float)maxInitialTimestamp
+                                            maxNewTokens:(NSUInteger)maxNewTokens
                                                     error:(NSError **)error {
     MWGenerateResult *bestResult = nil;
     try {
@@ -766,7 +767,22 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             opts.length_penalty = lengthPenalty;
             opts.repetition_penalty = repetitionPenalty;
             opts.no_repeat_ngram_size = noRepeatNgramSize;
-            opts.max_length = _maxLength;
+
+            // Fix H7: max_new_tokens support.
+            NSUInteger effectiveMaxLength = _maxLength;
+            if (maxNewTokens > 0) {
+                effectiveMaxLength = [prompt count] + maxNewTokens;
+                if (effectiveMaxLength > _maxLength) {
+                    MWSetError(error, MWErrorCodeGenerateFailed,
+                               [NSString stringWithFormat:
+                                @"prompt length (%lu) + max_new_tokens (%lu) = %lu exceeds model max_length (%lu)",
+                                (unsigned long)[prompt count], (unsigned long)maxNewTokens,
+                                (unsigned long)effectiveMaxLength, (unsigned long)_maxLength]);
+                    return nil;
+                }
+            }
+            opts.max_length = effectiveMaxLength;
+
             opts.return_scores = true;
             opts.return_no_speech_prob = true;
             opts.suppress_blank = suppressBlank ? true : false;
@@ -1238,13 +1254,16 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                prependPunctuations:(NSString *)prepend
                 appendPunctuations:(NSString *)append
                         timeOffset:(float)timeOffset
-                      segmentDuration:(float)segDuration {
-    if (!segments || [segments count] <= fromIndex) return 0.0f;
+                  segmentDuration:(float)segDuration
+              lastSpeechTimestamp:(float)lastSpeechTimestamp {
+    if (!segments || [segments count] <= fromIndex) return lastSpeechTimestamp;
 
     // Collect text tokens from each segment (filter out timestamp tokens).
+    // Also build per-segment token lists for word assignment (text_tokens_per_segment).
     NSUInteger tsBegin = tokenizer.timestampBegin;
     NSUInteger eot = tokenizer.eot;
     NSMutableArray<NSArray<NSNumber *> *> *textTokensBatch = [[NSMutableArray alloc] init];
+    NSMutableArray<NSArray<NSNumber *> *> *textTokensPerSegment = [[NSMutableArray alloc] init];
 
     for (NSUInteger si = fromIndex; si < [segments count]; si++) {
         MWTranscriptionSegment *seg = segments[si];
@@ -1256,6 +1275,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             }
         }
         [textTokensBatch addObject:textToks];
+        // For single-subsegment model, each segment = one subsegment, so per-segment = same.
+        [textTokensPerSegment addObject:[NSArray arrayWithArray:textToks]];
         [textToks release];
     }
 
@@ -1268,78 +1289,249 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                         medianFilterWidth:7];
     [textTokensBatch release];
 
-    if (!alignments || [alignments count] == 0) return 0.0f;
+    if (!alignments || [alignments count] == 0) {
+        [textTokensPerSegment release];
+        return lastSpeechTimestamp;
+    }
 
-    float lastSpeechTimestamp = 0.0f;
+    // ── Fix C5: Compute median/max durations and apply sentence-boundary heuristics ──
 
-    // Process each segment's alignment.
+    // Build mutable alignments and compute median_max_durations.
+    NSMutableArray<NSMutableArray<NSMutableDictionary *> *> *mutableAlignments = [[NSMutableArray alloc] init];
+    NSMutableArray<NSNumber *> *medianDurations = [[NSMutableArray alloc] init];
+    NSMutableArray<NSNumber *> *maxDurations = [[NSMutableArray alloc] init];
+
+    // Sentence-end marks for truncation heuristic.
+    NSString *sentenceEndMarks = @".。!！?？";
+
     for (NSUInteger ai = 0; ai < [alignments count]; ai++) {
-        NSUInteger segIdx = fromIndex + ai;
-        if (segIdx >= [segments count]) break;
-
         NSArray<NSDictionary *> *alignment = alignments[ai];
-        if ([alignment count] == 0) continue;
 
-        MWTranscriptionSegment *seg = segments[segIdx];
-
-        // Convert to mutable dicts for punctuation merging.
+        // Convert to mutable dicts.
         NSMutableArray<NSMutableDictionary *> *mutableAlignment = [[NSMutableArray alloc] init];
         for (NSDictionary *d in alignment) {
             [mutableAlignment addObject:[d mutableCopy]];
         }
 
-        // Merge punctuations.
-        MWMergePunctuations(mutableAlignment, prepend, append);
-
-        // Build MWWord array, offsetting times by segment start.
-        NSMutableArray<MWWord *> *words = [[NSMutableArray alloc] init];
+        // Compute word durations, filter non-zero, compute median (capped at 0.7).
+        NSMutableArray<NSNumber *> *wordDurs = [[NSMutableArray alloc] init];
         for (NSMutableDictionary *wd in mutableAlignment) {
-            NSString *wordStr = wd[@"word"];
-            if ([wordStr length] == 0) continue;  // Skip merged-away entries.
-
-            float wStart = [wd[@"start"] floatValue] + timeOffset;
-            float wEnd = [wd[@"end"] floatValue] + timeOffset;
-            float wProb = [wd[@"probability"] floatValue];
-
-            // Clamp word times to segment boundaries.
-            if (wStart < seg.start) wStart = seg.start;
-            if (wEnd > seg.end) wEnd = seg.end;
-            if (wStart > wEnd) wStart = wEnd;
-
-            MWWord *word = [[MWWord alloc] initWithWord:wordStr
-                                                  start:wStart
-                                                    end:wEnd
-                                            probability:wProb];
-            [words addObject:word];
-            [word release];
-
-            if (wEnd > lastSpeechTimestamp) {
-                lastSpeechTimestamp = wEnd;
+            float dur = [wd[@"end"] floatValue] - [wd[@"start"] floatValue];
+            if (dur > 0.0f) {
+                [wordDurs addObject:@(dur)];
             }
         }
 
-        // Replace the segment with a new one that includes words.
-        MWTranscriptionSegment *newSeg = [[MWTranscriptionSegment alloc]
-            initWithSegmentId:seg.segmentId
-                         seek:seg.seek
-                        start:seg.start
-                          end:seg.end
-                         text:seg.text
-                       tokens:seg.tokens
-                  temperature:seg.temperature
-                   avgLogProb:seg.avgLogProb
-             compressionRatio:seg.compressionRatio
-                noSpeechProb:seg.noSpeechProb
-                        words:words];
-        [segments replaceObjectAtIndex:segIdx withObject:newSeg];
-        [newSeg release];
+        float medianDuration = 0.0f;
+        if ([wordDurs count] > 0) {
+            // Sort to find median.
+            NSArray<NSNumber *> *sorted = [wordDurs sortedArrayUsingSelector:@selector(compare:)];
+            NSUInteger mid = [sorted count] / 2;
+            if ([sorted count] % 2 == 0) {
+                medianDuration = ([sorted[mid - 1] floatValue] + [sorted[mid] floatValue]) / 2.0f;
+            } else {
+                medianDuration = [sorted[mid] floatValue];
+            }
+        }
+        medianDuration = fminf(0.7f, medianDuration);
+        float maxDuration = medianDuration * 2.0f;
+
+        // Truncate long words at sentence boundaries.
+        if ([wordDurs count] > 0) {
+            for (NSUInteger i = 1; i < [mutableAlignment count]; i++) {
+                NSMutableDictionary *wd = mutableAlignment[i];
+                float wStart = [wd[@"start"] floatValue];
+                float wEnd = [wd[@"end"] floatValue];
+                if (wEnd - wStart > maxDuration) {
+                    NSString *wordStr = wd[@"word"];
+                    NSMutableDictionary *prevWd = mutableAlignment[i - 1];
+                    NSString *prevWordStr = prevWd[@"word"];
+
+                    // Check if current word is a sentence-end mark.
+                    if ([wordStr length] > 0 &&
+                        [sentenceEndMarks rangeOfString:wordStr].location != NSNotFound) {
+                        wd[@"end"] = @(wStart + maxDuration);
+                    }
+                    // Check if previous word is a sentence-end mark.
+                    else if ([prevWordStr length] > 0 &&
+                             [sentenceEndMarks rangeOfString:prevWordStr].location != NSNotFound) {
+                        wd[@"start"] = @(wEnd - maxDuration);
+                    }
+                }
+            }
+        }
+        [wordDurs release];
+
+        // Merge punctuations.
+        MWMergePunctuations(mutableAlignment, prepend, append);
+
+        [medianDurations addObject:@(medianDuration)];
+        [maxDurations addObject:@(maxDuration)];
+        [mutableAlignments addObject:mutableAlignment];
+    }
+
+    // ── Process each segment's alignment with full heuristics ──
+
+    for (NSUInteger ai = 0; ai < [mutableAlignments count]; ai++) {
+        NSUInteger segIdx = fromIndex + ai;
+        if (segIdx >= [segments count]) break;
+
+        NSMutableArray<NSMutableDictionary *> *mutableAlignment = mutableAlignments[ai];
+        if ([mutableAlignment count] == 0) continue;
+
+        MWTranscriptionSegment *seg = segments[segIdx];
+        float medianDuration = [medianDurations[ai] floatValue];
+        float maxDuration = [maxDurations[ai] floatValue];
+
+        // Build MWWord array, offsetting times by timeOffset.
+        // Port of Python per-subsegment word assignment (lines 1621-1695).
+        NSMutableArray<MWWord *> *words = [[NSMutableArray alloc] init];
+        NSUInteger wordIndex = 0;
+        NSUInteger savedTokens = 0;
+        NSArray<NSNumber *> *segTextTokens = textTokensPerSegment[ai];
+        NSUInteger targetTokenCount = [segTextTokens count];
+
+        while (wordIndex < [mutableAlignment count] && savedTokens < targetTokenCount) {
+            NSMutableDictionary *timing = mutableAlignment[wordIndex];
+            NSString *wordStr = timing[@"word"];
+            if ([wordStr length] > 0) {
+                float wStart = [timing[@"start"] floatValue] + timeOffset;
+                float wEnd = [timing[@"end"] floatValue] + timeOffset;
+                float wProb = [timing[@"probability"] floatValue];
+
+                wStart = roundf(wStart * 100.0f) / 100.0f;
+                wEnd = roundf(wEnd * 100.0f) / 100.0f;
+
+                MWWord *word = [[MWWord alloc] initWithWord:wordStr
+                                                      start:wStart
+                                                        end:wEnd
+                                                probability:wProb];
+                [words addObject:word];
+                [word release];
+            }
+
+            NSArray *tokens = timing[@"tokens"];
+            savedTokens += [tokens count];
+            wordIndex++;
+        }
+
+        // ── Per-subsegment heuristics (Python lines 1649-1694) ──
+        if ([words count] > 0) {
+            MWWord *firstWord = words[0];
+            MWWord *lastWord = [words lastObject];
+
+            // Post-pause first-word adjustment.
+            if (firstWord.end - lastSpeechTimestamp > medianDuration * 4.0f &&
+                (firstWord.end - firstWord.start > maxDuration ||
+                 ([words count] > 1 && ((MWWord *)words[1]).end - firstWord.start > maxDuration * 2.0f))) {
+
+                if ([words count] > 1) {
+                    MWWord *secondWord = words[1];
+                    if (secondWord.end - secondWord.start > maxDuration) {
+                        float boundary = fmaxf(secondWord.end / 2.0f, secondWord.end - maxDuration);
+                        // Update first word end and second word start.
+                        MWWord *newFirst = [[MWWord alloc] initWithWord:firstWord.word
+                                                                  start:firstWord.start
+                                                                    end:boundary
+                                                            probability:firstWord.probability];
+                        MWWord *newSecond = [[MWWord alloc] initWithWord:secondWord.word
+                                                                   start:boundary
+                                                                     end:secondWord.end
+                                                             probability:secondWord.probability];
+                        [words replaceObjectAtIndex:0 withObject:newFirst];
+                        [words replaceObjectAtIndex:1 withObject:newSecond];
+                        [newFirst release];
+                        [newSecond release];
+                        firstWord = words[0];
+                    }
+                }
+                // Adjust first word start.
+                float newStart = fmaxf(0.0f, firstWord.end - maxDuration);
+                MWWord *adjusted = [[MWWord alloc] initWithWord:firstWord.word
+                                                          start:newStart
+                                                            end:firstWord.end
+                                                    probability:firstWord.probability];
+                [words replaceObjectAtIndex:0 withObject:adjusted];
+                [adjusted release];
+                firstWord = words[0];
+            }
+
+            // Prefer segment-level start if first word is too long.
+            float segStart = seg.start;
+            if (segStart < firstWord.end && segStart - 0.5f > firstWord.start) {
+                float newStart = fmaxf(0.0f, fminf(firstWord.end - medianDuration, segStart));
+                MWWord *adjusted = [[MWWord alloc] initWithWord:firstWord.word
+                                                          start:newStart
+                                                            end:firstWord.end
+                                                    probability:firstWord.probability];
+                [words replaceObjectAtIndex:0 withObject:adjusted];
+                [adjusted release];
+            } else {
+                segStart = firstWord.start;
+            }
+
+            // Prefer segment-level end if last word is too long.
+            float segEnd = seg.end;
+            lastWord = [words lastObject];
+            if (segEnd > lastWord.start && segEnd + 0.5f < lastWord.end) {
+                float newEnd = fmaxf(lastWord.start + medianDuration, segEnd);
+                MWWord *adjusted = [[MWWord alloc] initWithWord:lastWord.word
+                                                          start:lastWord.start
+                                                            end:newEnd
+                                                    probability:lastWord.probability];
+                [words replaceObjectAtIndex:[words count] - 1 withObject:adjusted];
+                [adjusted release];
+            } else {
+                segEnd = lastWord.end;
+            }
+
+            lastSpeechTimestamp = segEnd;
+
+            // Update segment start/end from word boundaries.
+            // Create new segment with updated start/end.
+            MWTranscriptionSegment *newSeg = [[MWTranscriptionSegment alloc]
+                initWithSegmentId:seg.segmentId
+                             seek:seg.seek
+                            start:segStart
+                              end:segEnd
+                             text:seg.text
+                           tokens:seg.tokens
+                      temperature:seg.temperature
+                       avgLogProb:seg.avgLogProb
+                 compressionRatio:seg.compressionRatio
+                    noSpeechProb:seg.noSpeechProb
+                            words:words];
+            [segments replaceObjectAtIndex:segIdx withObject:newSeg];
+            [newSeg release];
+        } else {
+            // No words — just replace segment with empty words.
+            MWTranscriptionSegment *newSeg = [[MWTranscriptionSegment alloc]
+                initWithSegmentId:seg.segmentId
+                             seek:seg.seek
+                            start:seg.start
+                              end:seg.end
+                             text:seg.text
+                           tokens:seg.tokens
+                      temperature:seg.temperature
+                       avgLogProb:seg.avgLogProb
+                 compressionRatio:seg.compressionRatio
+                    noSpeechProb:seg.noSpeechProb
+                            words:words];
+            [segments replaceObjectAtIndex:segIdx withObject:newSeg];
+            [newSeg release];
+        }
 
         [words release];
         for (NSMutableDictionary *d in mutableAlignment) {
             [d release];
         }
-        [mutableAlignment release];
     }
+
+    // Cleanup.
+    [mutableAlignments release];
+    [medianDurations release];
+    [maxDurations release];
+    [textTokensPerSegment release];
 
     return lastSpeechTimestamp;
 }
@@ -1424,6 +1616,9 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     NSString *hotwords = MWOptString(options, @"hotwords");
     BOOL wordTimestamps = MWOptBool(options, @"wordTimestamps", NO);
     BOOL multilingualPerSegment = MWOptBool(options, @"multilingual", NO);
+    NSUInteger languageDetectionSegments = MWOptUInt(options, @"languageDetectionSegments", 1);
+    float languageDetectionThreshold = MWOptFloat(options, @"languageDetectionThreshold", 0.5f);
+    NSUInteger maxNewTokens = MWOptUInt(options, @"maxNewTokens", 0);
     float hallucinationSilenceThreshold = MWOptFloat(options, @"hallucinationSilenceThreshold", 0.0f);
     NSString *prependPunctuations = MWOptString(options, @"prependPunctuations");
     if (!prependPunctuations) {
@@ -1479,8 +1674,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         float prob = 0.0f;
         NSError *langError = nil;
         BOOL ok = [self detectLanguageFromAudio:audio
-                                       segments:1
-                                      threshold:0.5f
+                                       segments:languageDetectionSegments
+                                      threshold:languageDetectionThreshold
                                detectedLanguage:&detected
                                     probability:&prob
                                allLanguageProbs:nil
@@ -1556,6 +1751,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     segments = [[NSMutableArray alloc] init];
     NSUInteger segmentIndex = 0;
     BOOL stopped = NO;
+    float lastSpeechTimestamp = 0.0f;  // Fix H12: carried across loop iterations
 
     for (NSUInteger clipIdx = 0; clipIdx + 1 < [seekClips count]; clipIdx += 2) {
         NSUInteger seek = [[seekClips objectAtIndex:clipIdx] unsignedIntegerValue];
@@ -1693,6 +1889,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                          suppressTokens:builtSuppressTokens
                                                           suppressBlank:suppressBlank
                                                     maxInitialTimestamp:maxInitialTimestamp
+                                                          maxNewTokens:maxNewTokens
                                                                   error:&genError];
             if (!result) {
                 MWLog(@"[MetalWhisper] Generate failed at seek=%lu: %@",
@@ -1783,7 +1980,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             // ── Word timestamps ──────────────────────────────────────────
             if (wordTimestamps && [segments count] > segmentsBeforeThisChunk) {
                 NSUInteger wordSegStart = segmentsBeforeThisChunk;
-                float lastSpeechTimestamp = [self addWordTimestampsToSegments:segments
+                lastSpeechTimestamp = [self addWordTimestampsToSegments:segments
                                         fromIndex:wordSegStart
                                     encoderOutput:encoderOutput
                                         numFrames:MIN(framesAvailable, segmentSize)
@@ -1791,7 +1988,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                               prependPunctuations:prependPunctuations
                                appendPunctuations:appendPunctuations
                                        timeOffset:timeOffset
-                                  segmentDuration:segmentDuration];
+                                  segmentDuration:segmentDuration
+                              lastSpeechTimestamp:lastSpeechTimestamp];
 
                 // Python: if not single_timestamp_ending:
                 //             last_word_end = get_end(current_segments)
@@ -1896,8 +2094,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 }
             }
 
-            // i) Update allTokens and handle prompt reset.
-            [allTokens addObjectsFromArray:result.tokenIDs];
+            // i) Update allTokens — only from yielded (non-empty) segments (Fix H13).
+            for (NSUInteger si = segmentsBeforeThisChunk; si < [segments count]; si++) {
+                [allTokens addObjectsFromArray:segments[si].tokens];
+            }
 
             // Python: if not condition_on_previous_text or temperature > prompt_reset_on_temperature:
             //             prompt_reset_since = len(all_tokens)
@@ -2014,8 +2214,11 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     float noSpeechThreshold = MWOptFloat(options, @"noSpeechThreshold", 0.6f);
     BOOL withoutTimestamps = MWOptBool(options, @"withoutTimestamps", YES);  // defaults to YES for batched
     BOOL suppressBlank = MWOptBool(options, @"suppressBlank", YES);
-    float maxInitialTimestamp = MWOptFloat(options, @"maxInitialTimestamp", 1.0f);
+    float maxInitialTimestamp = 0.0f;  // Fix H8: batched mode forces max_initial_timestamp=0.0 (Python line 552)
     NSString *hotwords = MWOptString(options, @"hotwords");
+    NSString *initialPrompt = MWOptString(options, @"initialPrompt");  // Fix H11
+    NSUInteger maxNewTokens = MWOptUInt(options, @"maxNewTokens", 0);  // Fix H7
+    BOOL multilingualOption = MWOptBool(options, @"multilingual", NO);  // Fix H10
     BOOL wordTimestamps = MWOptBool(options, @"wordTimestamps", NO);
     NSString *prependPunctuations = MWOptString(options, @"prependPunctuations");
     if (!prependPunctuations) {
@@ -2126,6 +2329,22 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             frameCount = segmentSize;
         }
 
+        // Fix H9: Drop the last frame (Python: feature_extractor(chunk)[..., :-1]).
+        if (frameCount > 1) {
+            frameCount -= 1;
+            // Trim mel to frameCount columns (nMels x frameCount, row-major).
+            NSUInteger origFrames = [mel length] / (nMels * sizeof(float));
+            if (origFrames > frameCount) {
+                NSMutableData *trimmedMel = [NSMutableData dataWithLength:nMels * frameCount * sizeof(float)];
+                const float *src = (const float *)[mel bytes];
+                float *dst = (float *)[trimmedMel mutableBytes];
+                for (NSUInteger row = 0; row < nMels; row++) {
+                    memcpy(dst + row * frameCount, src + row * origFrames, frameCount * sizeof(float));
+                }
+                mel = trimmedMel;
+            }
+        }
+
         // Pad or trim to 3000 frames.
         mel = MWPadOrTrimMel(mel, nMels, frameCount, segmentSize);
         [melChunks addObject:mel];
@@ -2182,11 +2401,16 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     // Build suppressed tokens.
     NSArray<NSNumber *> *builtSuppressTokens = [self buildSuppressedTokens:userSuppressTokens];
 
-    // Build base prompt (no previous tokens for batched).
-    NSArray<NSNumber *> *basePrompt = [self buildPromptWithPreviousTokens:nil
+    // Fix H11: Build base prompt with initial_prompt support for batched mode.
+    NSArray<NSNumber *> *previousTokens = nil;
+    if (initialPrompt && [initialPrompt length] > 0) {
+        previousTokens = [loopTokenizer encode:[@" " stringByAppendingString:initialPrompt]];
+    }
+    NSArray<NSNumber *> *basePrompt = [self buildPromptWithPreviousTokens:previousTokens
                                                         withoutTimestamps:withoutTimestamps
                                                                    prefix:nil
-                                                                 hotwords:hotwords];
+                                                                 hotwords:hotwords
+                                                                tokenizer:loopTokenizer];
 
     // Build suppress tokens vector for CT2.
     std::vector<int> suppressVec;
@@ -2265,6 +2489,40 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         // c) Build prompts (one per chunk in batch).
         std::vector<std::vector<size_t>> prompts(B, basePromptVec);
 
+        // Fix H10: Per-chunk language detection in batched mode.
+        if (multilingualOption && self.isMultilingual) {
+            try {
+                auto langFutures = _whisper->detect_language(encoderOutput);
+                // Find the language token index in the base prompt.
+                size_t languageTokenVal = (size_t)loopTokenizer.languageToken;
+                size_t languageTokenIndex = SIZE_MAX;
+                for (size_t pi = 0; pi < basePromptVec.size(); pi++) {
+                    if (basePromptVec[pi] == languageTokenVal) {
+                        languageTokenIndex = pi;
+                        break;
+                    }
+                }
+
+                if (languageTokenIndex != SIZE_MAX) {
+                    for (NSUInteger bi = 0; bi < B && bi < langFutures.size(); bi++) {
+                        auto results = langFutures[bi].get();
+                        if (!results.empty()) {
+                            // Top result (highest prob) — get the token string (e.g. "<|en|>").
+                            std::string langTokenStr = results[0].first;
+                            NSString *langTokenNS = [NSString stringWithUTF8String:langTokenStr.c_str()];
+                            NSUInteger langTokenId = [loopTokenizer tokenIDForString:langTokenNS];
+                            if (langTokenId != NSNotFound) {
+                                prompts[bi][languageTokenIndex] = (size_t)langTokenId;
+                            }
+                        }
+                    }
+                }
+            } catch (const std::exception& e) {
+                MWLog(@"[MetalWhisper] Batched: per-chunk language detection failed: %s", e.what());
+                // Continue with base prompts.
+            }
+        }
+
         // d) Build generate options.
         ctranslate2::models::WhisperOptions opts;
         if (temperature > 0.0f) {
@@ -2280,7 +2538,22 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         opts.length_penalty = lengthPenalty;
         opts.repetition_penalty = repetitionPenalty;
         opts.no_repeat_ngram_size = noRepeatNgramSize;
-        opts.max_length = _maxLength;
+
+        // Fix H7: max_new_tokens support for batched mode.
+        NSUInteger effectiveMaxLength = _maxLength;
+        if (maxNewTokens > 0) {
+            effectiveMaxLength = [basePrompt count] + maxNewTokens;
+            if (effectiveMaxLength > _maxLength) {
+                MWSetError(error, MWErrorCodeGenerateFailed,
+                           [NSString stringWithFormat:
+                            @"prompt length (%lu) + max_new_tokens (%lu) = %lu exceeds model max_length (%lu)",
+                            (unsigned long)[basePrompt count], (unsigned long)maxNewTokens,
+                            (unsigned long)effectiveMaxLength, (unsigned long)_maxLength]);
+                return nil;
+            }
+        }
+        opts.max_length = effectiveMaxLength;
+
         opts.return_scores = true;
         opts.return_no_speech_prob = true;
         opts.suppress_blank = suppressBlank ? true : false;
@@ -2449,7 +2722,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                               prependPunctuations:prependPunctuations
                                appendPunctuations:appendPunctuations
                                        timeOffset:0.0f
-                                  segmentDuration:segDur];
+                                  segmentDuration:segDur
+                              lastSpeechTimestamp:0.0f];
 
                 // Map word timestamps from chunk-relative to original audio time.
                 for (NSUInteger si = chunkSegStart; si < segmentIndex; si++) {

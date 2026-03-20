@@ -66,6 +66,7 @@ static void test_m4_4_greedy(MWTranscriber *t, NSData *encoderOutput) {
                                               suppressTokens:suppress
                                                suppressBlank:YES
                                          maxInitialTimestamp:1.0f
+                                              maxNewTokens:0
                                                        error:&error];
     ASSERT_TRUE(name, result != nil, fmtErr(@"Generate failed", error));
     ASSERT_TRUE(name, [result.tokenIDs count] > 0, @"No tokens generated");
@@ -107,6 +108,7 @@ static void test_m4_4_sampling(MWTranscriber *t, NSData *encoderOutput) {
                                               suppressTokens:suppress
                                                suppressBlank:YES
                                          maxInitialTimestamp:1.0f
+                                              maxNewTokens:0
                                                        error:&error];
     ASSERT_TRUE(name, result != nil, fmtErr(@"Generate failed", error));
     ASSERT_TRUE(name, [result.tokenIDs count] > 0, @"No tokens generated");
@@ -147,6 +149,7 @@ static void test_m4_4_fallback(MWTranscriber *t, NSData *encoderOutput) {
                                               suppressTokens:suppress
                                                suppressBlank:YES
                                          maxInitialTimestamp:1.0f
+                                              maxNewTokens:0
                                                        error:&error];
     ASSERT_TRUE(name, result != nil, fmtErr(@"Generate failed", error));
     ASSERT_TRUE(name, [result.tokenIDs count] > 0, @"No tokens generated");
@@ -235,6 +238,7 @@ static void test_m4_4_no_speech(MWTranscriber *t) {
                                               suppressTokens:suppress
                                                suppressBlank:YES
                                          maxInitialTimestamp:1.0f
+                                              maxNewTokens:0
                                                        error:&error];
     ASSERT_TRUE(name, result != nil, fmtErr(@"Generate on silence failed", error));
 
@@ -284,6 +288,7 @@ static void test_m4_4_best_of(MWTranscriber *t, NSData *encoderOutput) {
                                               suppressTokens:suppress
                                                suppressBlank:YES
                                          maxInitialTimestamp:1.0f
+                                              maxNewTokens:0
                                                        error:&error];
     ASSERT_TRUE(name, result != nil, fmtErr(@"Generate failed", error));
     ASSERT_TRUE(name, [result.tokenIDs count] > 0, @"No tokens generated");

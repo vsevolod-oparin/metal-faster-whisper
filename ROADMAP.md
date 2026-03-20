@@ -307,6 +307,19 @@ This is the largest milestone. Split into sub-milestones:
 
 **Exit criteria:** Transcription and translation output matches Python output exactly (same tokens) for greedy decoding with identical parameters on reference audio files.
 
+**Implementation comparison (2026-03-20):** Line-by-line comparison against Python faster-whisper found 22 divergences (5 CRITICAL, 13 HIGH, 4 LOW). 19 fixed. See `reports/implementation-comparison.md`.
+
+Key fixes applied:
+- No-speech detection logic matched to Python (C1)
+- Per-segment multilingual language re-detection (C3)
+- Word timestamp duration heuristics fully ported (C5)
+- Prompt construction uses correct per-segment tokenizer (language bug fix)
+- Empty segment filtering, prefix only first segment, seek from word timestamps
+- Batched mode: VAD defaults, per-chunk language detection, initial_prompt, max_initial_timestamp, feature last-frame drop
+- max_new_tokens support, language detection user params, last_speech_timestamp tracking, allTokens yielded-only
+
+Remaining 3 LOW divergences are intentional (clip timestamp format, extra suppress tokens, broader anomaly filter).
+
 ---
 
 ### M5 — Word-Level Timestamps

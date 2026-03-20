@@ -835,6 +835,16 @@ struct MWTokenizerImpl {
 
 - (NSUInteger)vocabSize { return _impl->vocabSize; }
 
+- (NSUInteger)tokenIDForString:(NSString *)tokenString {
+    if (!tokenString) return NSNotFound;
+    std::string key = [tokenString UTF8String];
+    auto it = _impl->tokenToID.find(key);
+    if (it != _impl->tokenToID.end()) {
+        return (NSUInteger)it->second;
+    }
+    return NSNotFound;
+}
+
 - (NSArray<NSNumber *> *)nonSpeechTokens {
     NSMutableArray<NSNumber *> *result = [[NSMutableArray alloc]
         initWithCapacity:_impl->nonSpeechTokenIDs.size()];

@@ -87,12 +87,25 @@ NS_ASSUME_NONNULL_BEGIN
 /// Text prefix for the first segment.
 @property (nonatomic, copy, nullable) NSString *prefix;
 
+// ── Language Detection ──────────────────────────────────────────────────────
+
+/// Number of audio segments to use for language detection.  Default: 1.
+@property (nonatomic) NSUInteger languageDetectionSegments;
+
+/// Minimum probability threshold for language detection.  Default: 0.5.
+@property (nonatomic) float languageDetectionThreshold;
+
 // ── Multilingual ────────────────────────────────────────────────────────────
 
 /// Whether to re-detect language per segment.  Default: NO.
 /// When YES, language detection runs on each 30s encoder output and the tokenizer
 /// is updated if the detected language differs from the current one.
 @property (nonatomic) BOOL multilingual;
+
+// ── Generation Length ──────────────────────────────────────────────────────
+
+/// Maximum number of new tokens to generate per chunk (0 = use model default).  Default: 0.
+@property (nonatomic) NSUInteger maxNewTokens;
 
 // ── VAD ─────────────────────────────────────────────────────────────────────
 

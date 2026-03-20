@@ -53,6 +53,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Vocab size (including added/special tokens).
 @property (nonatomic, readonly) NSUInteger vocabSize;
 
+/// Look up a token string (e.g. "<|en|>") and return its ID, or NSNotFound if missing.
+- (NSUInteger)tokenIDForString:(NSString *)tokenString;
+
 // --- Word splitting ---
 
 /// Split tokens into words (space-based for most languages, character-based for CJK).
