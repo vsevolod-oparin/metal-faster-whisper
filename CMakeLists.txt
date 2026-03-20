@@ -128,6 +128,7 @@ install(FILES
     src/MWConstants.h
     src/MWTokenizer.h
     src/MWHelpers.h
+    src/MWModelManager.h
     src/MWVoiceActivityDetector.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )

@@ -5,6 +5,7 @@
 #import "MWTranscriber.h"
 #import "MWAudioDecoder.h"
 #import "MWVoiceActivityDetector.h"
+#import "MWModelManager.h"
 #import "MWConstants.h"
 
 #include <cstdio>
@@ -80,6 +81,8 @@ struct CLIOptions {
     BOOL verbose;
     NSMutableArray<NSString *> *inputFiles;
     BOOL readStdin;
+    BOOL listModels;
+    BOOL downloadOnly;
 };
 
 // ── Time formatting ────────────────────────────────────────────────────────
@@ -267,7 +270,8 @@ static void printUsage(void) {
         "Usage: metalwhisper [OPTIONS] <input_file> [input_file2 ...]\n"
         "\n"
         "Options:\n"
-        "  --model <path>                Model directory path (required)\n"
+        "  --model <path|alias>          Model path, alias, or HF repo ID (required)\n"
+        "                                Aliases: tiny, base, small, medium, large-v3, turbo, ...\n"
         "  --language <code>             Language code (default: auto-detect)\n"
         "  --task <transcribe|translate>  Task (default: transcribe)\n"
         "  --output-format <text|srt|vtt|json>  Output format (default: text)\n"
@@ -286,6 +290,8 @@ static void printUsage(void) {
         "                                (default: 0.0,0.2,0.4,0.6,0.8,1.0)\n"
         "  --json                        Shorthand for --output-format json\n"
         "  --verbose                     Show progress and timing info on stderr\n"
+        "  --list-models                 List available model aliases\n"
+        "  --download                    Download model without transcribing\n"
         "  --help                        Show help\n"
         "  --version                     Show version\n"
         "  -                             Read audio from stdin (WAV format)\n"
@@ -369,6 +375,8 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
     opts->verbose = NO;
     opts->inputFiles = [NSMutableArray array];
     opts->readStdin = NO;
+    opts->listModels = NO;
+    opts->downloadOnly = NO;
 
     int i = 1;
     while (i < argc) {
@@ -438,6 +446,10 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
             opts->outputFormat = OutputFormatJSON;
         } else if (strcmp(arg, "--verbose") == 0) {
             opts->verbose = YES;
+        } else if (strcmp(arg, "--list-models") == 0) {
+            opts->listModels = YES;
+        } else if (strcmp(arg, "--download") == 0) {
+            opts->downloadOnly = YES;
         }
         // Stdin marker
         else if (strcmp(arg, "-") == 0) {
@@ -515,6 +527,30 @@ int main(int argc, const char *argv[]) {
             return 1;
         }
 
+        // Handle --list-models
+        if (opts.listModels) {
+            NSArray<NSString *> *models = [MWModelManager availableModels];
+            fprintf(stdout, "Available model aliases:\n");
+            for (NSString *alias in models) {
+                NSString *repoID = [MWModelManager repoIDForAlias:alias];
+                fprintf(stdout, "  %-20s  %s\n", [alias UTF8String], [repoID UTF8String]);
+            }
+
+            // Also list cached models
+            MWModelManager *mgr = [MWModelManager shared];
+            NSArray<NSDictionary *> *cached = [mgr listCachedModels];
+            if (cached.count > 0) {
+                fprintf(stdout, "\nCached models:\n");
+                for (NSDictionary *m in cached) {
+                    unsigned long long sizeBytes = [m[@"sizeBytes"] unsignedLongLongValue];
+                    double sizeMB = (double)sizeBytes / (1024.0 * 1024.0);
+                    fprintf(stdout, "  %-30s  %.1f MB\n",
+                            [m[@"name"] UTF8String], sizeMB);
+                }
+            }
+            return 0;
+        }
+
         // Validate --task
         if (![opts.task isEqualToString:@"transcribe"] &&
             ![opts.task isEqualToString:@"translate"]) {
@@ -557,10 +593,53 @@ int main(int argc, const char *argv[]) {
             printUsage();
             return 1;
         }
-        if (opts.inputFiles.count == 0) {
+        if (!opts.downloadOnly && opts.inputFiles.count == 0) {
             fprintf(stderr, "Error: No input files specified\n\n");
             printUsage();
             return 1;
+        }
+
+        // Resolve model path via MWModelManager (supports aliases, repo IDs, local paths)
+        {
+            MWModelManager *mgr = [MWModelManager shared];
+            NSError *resolveError = nil;
+            MWDownloadProgressBlock progressBlock = nil;
+            if (opts.verbose) {
+                progressBlock = ^(int64_t bytesDownloaded, int64_t totalBytes, NSString *fileName) {
+                    if (totalBytes > 0) {
+                        double pct = (double)bytesDownloaded / (double)totalBytes * 100.0;
+                        fprintf(stderr, "\rDownloading %s: %.1f%% (%.1f / %.1f MB)",
+                                [fileName UTF8String], pct,
+                                (double)bytesDownloaded / (1024.0 * 1024.0),
+                                (double)totalBytes / (1024.0 * 1024.0));
+                    } else {
+                        fprintf(stderr, "\rDownloading %s: %.1f MB",
+                                [fileName UTF8String],
+                                (double)bytesDownloaded / (1024.0 * 1024.0));
+                    }
+                };
+            }
+
+            NSString *resolvedPath = [mgr resolveModel:opts.modelPath
+                                              progress:progressBlock
+                                                 error:&resolveError];
+            if (!resolvedPath) {
+                fprintf(stderr, "Error: %s\n",
+                        [[resolveError localizedDescription] UTF8String]);
+                return 1;
+            }
+
+            if (opts.verbose && ![resolvedPath isEqualToString:opts.modelPath]) {
+                fprintf(stderr, "\nModel resolved to: %s\n", [resolvedPath UTF8String]);
+            }
+
+            opts.modelPath = resolvedPath;
+        }
+
+        // Handle --download (download only, no transcription)
+        if (opts.downloadOnly) {
+            fprintf(stdout, "Model ready at: %s\n", [opts.modelPath UTF8String]);
+            return 0;
         }
 
         // Create output dir if needed
