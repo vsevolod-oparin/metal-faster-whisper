@@ -18,6 +18,10 @@ list(APPEND CMAKE_PREFIX_PATH "${CT2_INSTALL_PREFIX}")
 
 find_package(ctranslate2 REQUIRED)
 
+# ── Find ONNX Runtime ──────────────────────────────────────────────────────
+set(ONNXRUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime-osx-arm64-1.21.0")
+find_library(ONNXRUNTIME_LIB onnxruntime PATHS "${ONNXRUNTIME_DIR}/lib" NO_DEFAULT_PATH)
+
 # ── Apple frameworks ─────────────────────────────────────────────────────────
 find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
 find_library(METAL_FRAMEWORK Metal REQUIRED)
@@ -34,6 +38,8 @@ target_include_directories(MetalWhisper
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${ONNXRUNTIME_DIR}/include"
 )
 
 target_link_libraries(MetalWhisper
@@ -45,6 +51,7 @@ target_link_libraries(MetalWhisper
         ${ACCELERATE_FRAMEWORK}
         ${AVFOUNDATION_FRAMEWORK}
         ${COMPRESSION_LIB}
+        ${ONNXRUNTIME_LIB}
 )
 
 # Disable ARC for all Obj-C++ sources (architecture decision #5)
@@ -58,7 +65,7 @@ set_target_properties(MetalWhisper PROPERTIES
     INSTALL_NAME_DIR "@rpath"
     BUILD_WITH_INSTALL_RPATH OFF
     INSTALL_RPATH "@loader_path;@loader_path/../lib"
-    BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib;${ONNXRUNTIME_DIR}/lib"
     MACOSX_RPATH ON
 )
 
@@ -80,7 +87,7 @@ foreach(test_source ${MW_TESTS})
     target_compile_options(${test_name} PRIVATE -fno-objc-arc)
     set_target_properties(${test_name} PROPERTIES
         INSTALL_RPATH "@loader_path/../lib"
-        BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib"
+        BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib;${ONNXRUNTIME_DIR}/lib"
         MACOSX_RPATH ON
     )
 endforeach()
@@ -102,6 +109,7 @@ install(FILES
     src/MWConstants.h
     src/MWTokenizer.h
     src/MWHelpers.h
+    src/MWVoiceActivityDetector.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )
 
@@ -109,6 +117,12 @@ install(FILES
 # Resolves symlinks to find the real file, then installs versioned + unversioned links.
 file(GLOB CT2_DYLIBS "${CT2_INSTALL_PREFIX}/lib/libctranslate2*.dylib")
 install(FILES ${CT2_DYLIBS}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+# Install ONNX Runtime dylib alongside MetalWhisper.
+file(GLOB ORT_DYLIBS "${ONNXRUNTIME_DIR}/lib/libonnxruntime*.dylib")
+install(FILES ${ORT_DYLIBS}
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 

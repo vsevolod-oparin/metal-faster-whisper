@@ -25,6 +25,21 @@ xcuserdata/
 **/.DS_Store
 ._*
 
+# Third-party libraries (downloaded, not tracked)
+third_party/
+
+# Models (downloaded or copied, not tracked)
+models/*.onnx
+models/*.mlpackage/
+models/*.mlmodelc/
+
+# Test audio data (copied from faster-whisper/tests/data)
+tests/data/*.wav
+tests/data/*.mp3
+tests/data/*.m4a
+tests/data/*.flac
+tests/data/reference/*.raw
+
 # Temporary files
 tmp/*
 !tmp/.gitkeep
