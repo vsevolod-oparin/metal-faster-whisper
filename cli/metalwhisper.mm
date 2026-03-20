@@ -24,6 +24,8 @@ static const char *kVersion = "0.1.0";
 static char gStdinTempPathBuf[1024] = {0};
 
 static void signalHandler(int sig) {
+    // unlink is async-signal-safe per POSIX (IEEE Std 1003.1-2017, Section 2.4.3).
+    // _exit is also async-signal-safe.
     if (gStdinTempPathBuf[0] != '\0') {
         unlink(gStdinTempPathBuf);
     }
@@ -413,7 +415,12 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
         } else if (strcmp(arg, "--beam-size") == 0) {
             if (++i >= argc) { fprintf(stderr, "Error: --beam-size requires a value\n"); return NO; }
             {
-                long val = strtol(argv[i], NULL, 10);
+                char *endptr = NULL;
+                long val = strtol(argv[i], &endptr, 10);
+                if (endptr == argv[i] || *endptr != '\0') {
+                    fprintf(stderr, "Error: --beam-size requires a numeric value\n");
+                    return NO;
+                }
                 if (val < 1 || val > 100) {
                     fprintf(stderr, "Error: --beam-size must be between 1 and 100\n");
                     return NO;

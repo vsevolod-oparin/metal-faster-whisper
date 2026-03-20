@@ -1,5 +1,6 @@
 #import "MWTokenizer.h"
-#import "MWTranscriber.h"  // For MWErrorDomain and MWErrorCode
+#import "MWHelpers.h"
+#import "MWTranscriber.h"  // For MWErrorDomain, MWErrorCode, MWErrorCodeTokenizerLoadFailed
 
 #include <string>
 #include <vector>
@@ -11,28 +12,13 @@
 #include <climits>
 #include <sstream>
 
-// ── Error helper ─────────────────────────────────────────────────────────────
-
-static void MWSetError(NSError **error, NSInteger code, NSString *description) {
-    if (error) {
-        *error = [NSError errorWithDomain:MWErrorDomain
-                                     code:code
-                                 userInfo:@{
-            NSLocalizedDescriptionKey: description
-        }];
-    }
-}
-
 // ── Named constants ──────────────────────────────────────────────────────────
-
-/// Tokenizer error code.
-static const NSInteger kMWErrorCodeTokenizerLoadFailed = 200;
 
 /// Timestamp precision in seconds per token.
 static const double kTimestampPrecision = 0.02;
 
 /// Unicode codepoint where unmapped bytes start in GPT-2 byte encoding.
-static const int kByteRemapStart = 256;
+static const int kGPT2ByteRemapOffset = 256;
 
 // ── GPT-2 byte-level BPE helpers ─────────────────────────────────────────────
 
@@ -57,7 +43,7 @@ static std::unordered_map<uint8_t, char32_t> buildBytesToUnicode() {
     int n = 0;
     for (int b = 0; b < 256; ++b) {
         if (direct.find(b) == direct.end()) {
-            result[static_cast<uint8_t>(b)] = static_cast<char32_t>(kByteRemapStart + n);
+            result[static_cast<uint8_t>(b)] = static_cast<char32_t>(kGPT2ByteRemapOffset + n);
             ++n;
         }
     }
@@ -419,7 +405,7 @@ struct MWTokenizerImpl {
     } @catch (NSException *exception) {
         delete _impl;
         _impl = nullptr;
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed,
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed,
                    [NSString stringWithFormat:@"Exception loading tokenizer: %@", exception.reason]);
         [self release];
         return nil;
@@ -440,14 +426,14 @@ struct MWTokenizerImpl {
     NSString *tokenizerPath = [modelPath stringByAppendingPathComponent:@"tokenizer.json"];
 
     if (![[NSFileManager defaultManager] fileExistsAtPath:tokenizerPath]) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed,
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed,
                    [NSString stringWithFormat:@"tokenizer.json not found at: %@", tokenizerPath]);
         return NO;
     }
 
     NSData *jsonData = [NSData dataWithContentsOfFile:tokenizerPath];
     if (!jsonData) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed,
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed,
                    @"Failed to read tokenizer.json");
         return NO;
     }
@@ -457,7 +443,7 @@ struct MWTokenizerImpl {
                                                         options:0
                                                           error:&parseError];
     if (!root) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed,
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed,
                    [NSString stringWithFormat:@"JSON parse error: %@",
                     [parseError localizedDescription]]);
         return NO;
@@ -470,13 +456,13 @@ struct MWTokenizerImpl {
     // Parse model.vocab
     NSDictionary *model = root[@"model"];
     if (!model) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed, @"Missing 'model' key in tokenizer.json");
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed, @"Missing 'model' key in tokenizer.json");
         return NO;
     }
 
     NSDictionary *vocab = model[@"vocab"];
     if (!vocab) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed, @"Missing 'model.vocab' key");
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed, @"Missing 'model.vocab' key");
         return NO;
     }
 
@@ -493,7 +479,7 @@ struct MWTokenizerImpl {
     // Parse model.merges
     NSArray *merges = model[@"merges"];
     if (!merges) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed, @"Missing 'model.merges' key");
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed, @"Missing 'model.merges' key");
         return NO;
     }
 
@@ -523,7 +509,7 @@ struct MWTokenizerImpl {
 
     // Extract special token IDs from added_tokens
     if (![self _resolveSpecialTokens]) {
-        MWSetError(error, kMWErrorCodeTokenizerLoadFailed,
+        MWSetError(error, MWErrorCodeTokenizerLoadFailed,
                    @"Critical special tokens (eot, sot) not found in tokenizer vocabulary");
         return NO;
     }

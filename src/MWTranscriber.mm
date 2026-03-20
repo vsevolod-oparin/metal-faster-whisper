@@ -1094,7 +1094,11 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             std::vector<size_t> numFramesVec = {numFrames};
 
             // Call CT2 align on CPU to avoid MPS LayerNorm limitations
-            // with non-iterative decoder execution. Thread-safe lazy init.
+            // with non-iterative decoder execution.
+            // The entire lazy-init + align call is held under @synchronized to
+            // prevent a concurrent thread from destroying _whisperCPU (via reset
+            // or dealloc) while align() is in progress.  (Fix C1)
+            std::vector<ctranslate2::models::WhisperAlignmentResult> alignResultVec;
             @synchronized (self) {
                 if (!_whisperCPU) {
                     const std::string path = [_modelPath UTF8String];
@@ -1106,17 +1110,19 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                         false
                     );
                 }
+
+                auto futures = _whisperCPU->align(encView, startSeq, textTokensVec, numFramesVec,
+                                                  (ctranslate2::dim_t)medianFilterWidth);
+
+                if (futures.empty()) {
+                    [returnList addObject:@[]];
+                    continue;
+                }
+
+                alignResultVec.push_back(futures[0].get());
             }
 
-            auto futures = _whisperCPU->align(encView, startSeq, textTokensVec, numFramesVec,
-                                              (ctranslate2::dim_t)medianFilterWidth);
-
-            if (futures.empty()) {
-                [returnList addObject:@[]];
-                continue;
-            }
-
-            auto result = futures[0].get();
+            auto& result = alignResultVec[0];
 
             const auto& alignments = result.alignments;
             const auto& textTokenProbs = result.text_token_probs;
@@ -1286,7 +1292,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                               textTokens:textTokensBatch
                            encoderOutput:encoderOutput
                                numFrames:numFrames
-                        medianFilterWidth:7];
+                        medianFilterWidth:kMWDefaultMedianFilterWidth];
     [textTokensBatch release];
 
     if (!alignments || [alignments count] == 0) {
@@ -1308,9 +1314,11 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         NSArray<NSDictionary *> *alignment = alignments[ai];
 
         // Convert to mutable dicts.
+        // Use autorelease for the mutable copies so they are cleaned up even if
+        // an exception occurs before the explicit release loop at the end.
         NSMutableArray<NSMutableDictionary *> *mutableAlignment = [[NSMutableArray alloc] init];
         for (NSDictionary *d in alignment) {
-            [mutableAlignment addObject:[d mutableCopy]];
+            [mutableAlignment addObject:[[d mutableCopy] autorelease]];
         }
 
         // Compute word durations, filter non-zero, compute median (capped at 0.7).
@@ -1522,9 +1530,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         }
 
         [words release];
-        for (NSMutableDictionary *d in mutableAlignment) {
-            [d release];
-        }
+        // mutableCopy dicts are autoreleased -- no manual release needed.
     }
 
     // Cleanup.
@@ -1589,7 +1595,15 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     MWTokenizer *loopTokenizer = nil;
     BOOL createdNewTokenizer = NO;
     NSMutableArray<MWTranscriptionSegment *> *segments = nil;
-    NSMutableDictionary<NSString *, MWTokenizer *> *tokenizerCache = nil;  // For multilingual per-segment
+    // tokenizerCache ownership:
+    // - Created lazily on first per-segment language switch (multilingual mode).
+    // - The cache dictionary retains all tokenizers it holds (NSDictionary semantics).
+    // - The initial loopTokenizer (from _tokenizer or a newly created one) is inserted
+    //   into the cache when the cache is first created, transferring ownership.
+    // - On cleanup (@finally): if tokenizerCache exists, releasing it releases all
+    //   cached tokenizers including the initial one; otherwise, if createdNewTokenizer
+    //   is YES, loopTokenizer is released directly.
+    NSMutableDictionary<NSString *, MWTokenizer *> *tokenizerCache = nil;
 
     @try {
 
@@ -1597,10 +1611,11 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     float audioDuration = (float)totalSamples / (float)kMWTargetSampleRate;
 
     // ── Parse options ────────────────────────────────────────────────────────
-    NSUInteger beamSize = MWOptUInt(options, @"beamSize", 5);
+    // Defaults aligned with MWTranscriptionOptions (Fix H5).
+    NSUInteger beamSize = MWOptUInt(options, @"beamSize", 6);
     NSUInteger bestOf = MWOptUInt(options, @"bestOf", 5);
     float patience = MWOptFloat(options, @"patience", 1.0f);
-    float lengthPenalty = MWOptFloat(options, @"lengthPenalty", 1.0f);
+    float lengthPenalty = MWOptFloat(options, @"lengthPenalty", 0.6f);
     float repetitionPenalty = MWOptFloat(options, @"repetitionPenalty", 1.0f);
     NSUInteger noRepeatNgramSize = MWOptUInt(options, @"noRepeatNgramSize", 0);
     float compressionRatioThreshold = MWOptFloat(options, @"compressionRatioThreshold", 2.4f);
@@ -1636,9 +1651,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                      length:sizeof(appendChars)/sizeof(unichar)];
     }
 
+    // Default aligned with MWTranscriptionOptions (Fix H5).
     NSArray<NSNumber *> *temperatures = options[@"temperatures"];
     if (!temperatures || ![temperatures isKindOfClass:[NSArray class]] || [temperatures count] == 0) {
-        temperatures = @[@0.0, @0.2, @0.4, @0.6, @0.8, @1.0];
+        temperatures = @[@0.0f, @0.6f];
     }
 
     NSArray<NSNumber *> *userSuppressTokens = options[@"suppressTokens"];
@@ -2121,8 +2137,9 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                         duration:audioDuration] autorelease];
     }
 
-    // Release CPU model to free ~3GB after word timestamps are done (Fix P1).
-    _whisperCPU.reset();
+    // NOTE: Do NOT call _whisperCPU.reset() here. Although it would free ~3GB,
+    // it creates a race condition if another thread is concurrently inside
+    // align(). The CPU model is freed in -dealloc instead.  (Fix C1)
 
     NSArray<MWTranscriptionSegment *> *result = [[segments copy] autorelease];
     return result;
@@ -2205,10 +2222,11 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     float audioDuration = (float)totalSamples / (float)kMWTargetSampleRate;
 
     // ── Parse options ────────────────────────────────────────────────────────
-    NSUInteger beamSize = MWOptUInt(options, @"beamSize", 5);
+    // Defaults aligned with MWTranscriptionOptions (Fix H5).
+    NSUInteger beamSize = MWOptUInt(options, @"beamSize", 6);
     NSUInteger bestOf = MWOptUInt(options, @"bestOf", 5);
     float patience = MWOptFloat(options, @"patience", 1.0f);
-    float lengthPenalty = MWOptFloat(options, @"lengthPenalty", 1.0f);
+    float lengthPenalty = MWOptFloat(options, @"lengthPenalty", 0.6f);
     float repetitionPenalty = MWOptFloat(options, @"repetitionPenalty", 1.0f);
     NSUInteger noRepeatNgramSize = MWOptUInt(options, @"noRepeatNgramSize", 0);
     float noSpeechThreshold = MWOptFloat(options, @"noSpeechThreshold", 0.6f);
@@ -2234,9 +2252,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                      length:sizeof(appendChars)/sizeof(unichar)];
     }
 
+    // Default aligned with MWTranscriptionOptions (Fix H5).
     NSArray<NSNumber *> *temperatures = options[@"temperatures"];
     if (!temperatures || ![temperatures isKindOfClass:[NSArray class]] || [temperatures count] == 0) {
-        temperatures = @[@0.0, @0.2, @0.4, @0.6, @0.8, @1.0];
+        temperatures = @[@0.0f, @0.6f];
     }
     float temperature = [[temperatures firstObject] floatValue];  // batched uses only first temperature
 
@@ -2789,7 +2808,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                                         duration:audioDuration] autorelease];
     }
 
-    _whisperCPU.reset();
+    // NOTE: Do NOT call _whisperCPU.reset() here — see Fix C1 comment above.
 
     NSArray<MWTranscriptionSegment *> *result = [[allSegments copy] autorelease];
     return result;

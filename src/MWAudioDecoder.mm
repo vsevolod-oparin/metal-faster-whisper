@@ -1,5 +1,6 @@
 #import "MWAudioDecoder.h"
 #import "MWConstants.h"
+#import "MWHelpers.h"
 #import "MWTranscriber.h"  // For MWErrorDomain and MWErrorCode
 
 #import <AVFoundation/AVFoundation.h>
@@ -7,17 +8,6 @@
 
 #include <stdexcept>
 #include <climits>
-
-// ── Helper: set NSError if pointer is non-nil ────────────────────────────────
-static void MWSetError(NSError **error, MWErrorCode code, NSString *description) {
-    if (error) {
-        *error = [NSError errorWithDomain:MWErrorDomain
-                                     code:code
-                                 userInfo:@{
-            NSLocalizedDescriptionKey: description
-        }];
-    }
-}
 
 // ── Helper: decode from an AVAudioFile ───────────────────────────────────────
 static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
@@ -104,6 +94,11 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
                     if (!ok || inputBuffer.frameLength == 0) {
                         if (readErr) {
                             readError = YES;
+                            // Release-then-retain is safe: [nil release] is a no-op on
+                            // first call, and subsequent calls correctly release the
+                            // previous error.  An exception between release and retain
+                            // is theoretically possible but extremely unlikely in this
+                            // context (no ObjC exceptions, no C++ throws).  (H1: WONTFIX)
                             [fileReadError release];
                             fileReadError = [readErr retain];
                         }

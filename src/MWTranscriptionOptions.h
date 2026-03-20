@@ -28,7 +28,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Prevent repetitions of this n-gram size (0 = disabled).  Default: 0.
 @property (nonatomic) NSUInteger noRepeatNgramSize;
 
-/// Temperatures to try in order (fallback chain).  Default: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0].
+/// Temperatures to try in order (fallback chain).
+/// Default: @[@0.0, @0.2, @0.4, @0.6, @0.8, @1.0] (Python faster-whisper compatible).
+/// CLI default is @[@0.0, @0.6] (beam search + one sampling fallback).
+/// Use --temperature 0.0,0.2,0.4,0.6,0.8,1.0 on the CLI for Python-compatible behavior.
 @property (nonatomic, copy) NSArray<NSNumber *> *temperatures;
 
 // ── Thresholds ──────────────────────────────────────────────────────────────

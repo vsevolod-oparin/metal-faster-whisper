@@ -53,3 +53,7 @@ static const NSUInteger kMWMaxGenerationLength = 448;
 
 /// Encoder output frames = kMWDefaultChunkFrames / kMWInputStride.
 static const NSUInteger kMWEncoderOutputFrames = 1500;
+
+/// Default median filter width for cross-attention alignment in word timestamps.
+/// Must be odd. Matches the Python faster-whisper default.
+static const NSUInteger kMWDefaultMedianFilterWidth = 7;

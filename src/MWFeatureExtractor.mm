@@ -9,17 +9,7 @@
 #include <cmath>
 #include <vector>
 
-// ── Error helper ────────────────────────────────────────────────────────────
-
-static void MWSetError(NSError **error, MWErrorCode code, NSString *description) {
-    if (error) {
-        *error = [NSError errorWithDomain:MWErrorDomain
-                                     code:code
-                                 userInfo:@{
-            NSLocalizedDescriptionKey: description
-        }];
-    }
-}
+// MWSetError is provided by MWHelpers.h (already imported above).
 
 // ── HTK Mel scale helpers ───────────────────────────────────────────────────
 
@@ -458,6 +448,12 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
     NSUInteger nFrames = totalFrames - 1;
     outFrameCount = nFrames;
 
+    // Guard against size_t overflow in allocation (Fix H3)
+    if (nFreqs > 0 && nFrames > SIZE_MAX / nFreqs) {
+        outFrameCount = 0;
+        return {};
+    }
+
     // Allocate output: nFrames rows x nFreqs cols (row-major)
     std::vector<float> magnitudes(nFreqs * nFrames, 0.0f);
 
@@ -492,6 +488,11 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
 - (nullable NSData *)computeMelSpectrogramFromAudio:(NSData *)audio
                                          frameCount:(NSUInteger *)outFrameCount
                                               error:(NSError **)error {
+    // Serialize mel computation on this instance to prevent concurrent calls
+    // from corrupting shared BluesteinDFT work buffers.  Mel computation is
+    // fast (~7ms for 30s audio) and not the bottleneck (GPU encode dominates),
+    // so serialization has negligible impact on throughput.  (Fix C2)
+    @synchronized (self) {
     try {
         if (!audio || [audio length] == 0) {
             MWSetError(error, MWErrorCodeEncodeFailed,
@@ -584,6 +585,7 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
                    @"Mel spectrogram computation failed with unknown error");
         return nil;
     }
+    } // @synchronized (self)  (Fix C2)
 }
 
 @end

@@ -380,6 +380,13 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
 /// Runs transcription on a background dispatch queue (QOS_CLASS_USER_INITIATED)
 /// and calls completionHandler on the main queue.
 ///
+/// @note Only one transcription may run at a time per MWTranscriber instance.
+/// Calling this method while another transcription is already in progress
+/// (including a synchronous `transcribeURL:` or `transcribeAudio:` call)
+/// is undefined behavior.  The CT2 Whisper pool manages its own internal
+/// thread safety, but wrapper state (`_whisperCPU`, `_featureExtractor`)
+/// is not protected for concurrent transcriptions.  (Fix H2)
+///
 /// **Threading:**
 /// - `segmentHandler` is called on a background queue (QOS_CLASS_USER_INITIATED).
 ///   Do not perform UI work directly in this handler. Use dispatch_async to main

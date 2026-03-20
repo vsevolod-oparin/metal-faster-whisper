@@ -14,10 +14,15 @@ extern NSInteger const MWErrorCodeVADInferenceFailed;
 @interface MWVADOptions : NSObject
 @property (nonatomic) float threshold;              // default 0.5
 @property (nonatomic) float negThreshold;           // default -1 (auto: max(threshold-0.15, 0.01))
+/// Minimum speech duration in milliseconds. Segments shorter than this are discarded.
 @property (nonatomic) NSInteger minSpeechDurationMs;     // default 0
+/// Maximum speech duration in seconds. Segments longer than this are split.
 @property (nonatomic) float maxSpeechDurationS;     // default INFINITY
+/// Minimum silence duration in milliseconds before a speech segment ends.
 @property (nonatomic) NSInteger minSilenceDurationMs;    // default 2000
+/// Padding added to each side of speech segments, in milliseconds.
 @property (nonatomic) NSInteger speechPadMs;             // default 400
+/// Minimum silence duration in milliseconds at max speech boundary for splitting.
 @property (nonatomic) NSInteger minSilenceAtMaxSpeech;   // default 98
 @property (nonatomic) BOOL useMaxPossSilAtMaxSpeech;     // default YES
 + (instancetype)defaults;

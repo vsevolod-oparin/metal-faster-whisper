@@ -21,6 +21,7 @@ static const NSUInteger kVADWindowSize = 512;
 static const NSUInteger kVADContextSize = 64;
 static const NSUInteger kVADInputSize = kVADWindowSize + kVADContextSize;  // 576
 static const NSUInteger kVADHiddenSize = 128;
+/// Maximum ONNX inference batch size. 10000 chunks x 576 floats = ~22 MB per batch.
 static const NSUInteger kVADEncoderBatchSize = 10000;
 
 // ── MWVADOptions ──────────────────────────────────────────────────────────
@@ -479,8 +480,10 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
         }
     }
 
-    // Flush remaining.
-    [audioChunks addObject:[NSData dataWithData:currentAudio]];
+    // Flush remaining (only if non-empty, to avoid appending a zero-length chunk).
+    if ([currentAudio length] > 0) {
+        [audioChunks addObject:[NSData dataWithData:currentAudio]];
+    }
     [currentAudio release];
 
     NSArray<NSData *> *result = [NSArray arrayWithArray:audioChunks];
@@ -494,7 +497,7 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
 
 @implementation MWSpeechTimestampsMap {
     NSUInteger _samplingRate;
-    NSUInteger _timePrecision;
+    NSUInteger _decimalPlaces;
     std::vector<NSInteger> _chunkEndSample;
     std::vector<float> _totalSilenceBefore;
 }
@@ -506,7 +509,7 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
 
     if (samplingRate == 0) samplingRate = 16000;
     _samplingRate = samplingRate;
-    _timePrecision = 2;
+    _decimalPlaces = 2;
 
     NSInteger previousEnd = 0;
     NSInteger silentSamples = 0;
@@ -535,9 +538,9 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
         return time;
     }
     float totalSilenceBefore = _totalSilenceBefore[chunkIndex];
-    // Round to _timePrecision decimal places.
+    // Round to _decimalPlaces decimal places.
     float result = totalSilenceBefore + time;
-    float factor = powf(10.0f, (float)_timePrecision);
+    float factor = powf(10.0f, (float)_decimalPlaces);
     return roundf(result * factor) / factor;
 }
 

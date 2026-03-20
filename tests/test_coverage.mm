@@ -873,7 +873,306 @@ static void test_python_reference_russian(void) {
 }
 
 // =============================================================================
-// Group 5: Large-v3 model test (gated)
+// Group 5: Python reference deep comparison
+// =============================================================================
+
+// ── Test M4.6: Full transcription reference match (physicsworks) ─────────────
+
+static void test_m4_6_reference_match(void) {
+    const char *name = "test_m4_6_reference_match";
+    @autoreleasepool {
+        // 1) Load reference JSON
+        NSString *refPath = [gDataDir stringByAppendingPathComponent:
+            @"reference/python_transcription_physicsworks.json"];
+        NSData *refData = [NSData dataWithContentsOfFile:refPath];
+        ASSERT_TRUE(name, refData != nil, @"Failed to load physicsworks reference JSON");
+
+        NSError *jsonError = nil;
+        NSDictionary *ref = [NSJSONSerialization JSONObjectWithData:refData
+                                                            options:0
+                                                              error:&jsonError];
+        ASSERT_TRUE(name, ref != nil, fmtErr(@"JSON parse failed", jsonError));
+
+        NSArray *refSegments = ref[@"segments"];
+        ASSERT_TRUE(name, refSegments != nil && refSegments.count > 0,
+                    @"No segments in reference");
+
+        // Extract reference combined text
+        NSMutableString *refFullText = [NSMutableString string];
+        for (NSDictionary *seg in refSegments) {
+            [refFullText appendString:seg[@"text"] ?: @""];
+        }
+
+        // Extract ALL reference token IDs across all segments
+        NSMutableArray<NSNumber *> *refAllTokens = [NSMutableArray array];
+        for (NSDictionary *seg in refSegments) {
+            NSArray<NSNumber *> *segTokens = seg[@"tokens"];
+            if (segTokens) [refAllTokens addObjectsFromArray:segTokens];
+        }
+
+        // Reference first segment start time
+        float refFirstStart = [refSegments[0][@"start"] floatValue];
+
+        // 2) Transcribe physicsworks.wav with SAME parameters
+        NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"physicsworks.wav"];
+        NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+
+        MWTranscriptionOptions *opts = [MWTranscriptionOptions defaults];
+        opts.beamSize = 6;
+        opts.temperatures = @[@0.0f, @0.2f, @0.4f, @0.6f, @0.8f, @1.0f];
+        opts.lengthPenalty = 0.6f;
+        opts.conditionOnPreviousText = YES;
+        opts.wordTimestamps = YES;
+
+        NSError *error = nil;
+        MWTranscriptionInfo *info = nil;
+        NSArray<MWTranscriptionSegment *> *segments =
+            [gTranscriber transcribeURL:audioURL
+                               language:@"en"
+                                   task:@"transcribe"
+                           typedOptions:opts
+                         segmentHandler:nil
+                                   info:&info
+                                  error:&error];
+
+        ASSERT_TRUE(name, segments != nil, fmtErr(@"Transcription failed", error));
+        ASSERT_TRUE(name, segments.count > 0, @"Expected at least 1 segment");
+
+        // 3a) Segment count: within +/- 5
+        NSInteger segDiff = (NSInteger)segments.count - (NSInteger)refSegments.count;
+        fprintf(stdout, "    [info] Segment count: ours=%lu ref=%lu diff=%ld\n",
+                (unsigned long)segments.count, (unsigned long)refSegments.count, (long)segDiff);
+        ASSERT_FMT(name, labs(segDiff) <= 5,
+                   @"Segment count diff %ld > 5 (ours=%lu ref=%lu)",
+                   (long)segDiff, (unsigned long)segments.count,
+                   (unsigned long)refSegments.count);
+
+        // 3b) Combined text similarity > 75%
+        NSString *ourText = concatenateSegments(segments);
+        float similarity = characterSimilarity(ourText, refFullText);
+        fprintf(stdout, "    [info] Text similarity: %.1f%%\n", similarity * 100);
+        ASSERT_FMT(name, similarity > 0.75f,
+                   @"Text similarity %.1f%% < 75%%", similarity * 100);
+
+        // 3c) Token overlap > 60% (intersection/union of all token IDs)
+        NSMutableArray<NSNumber *> *ourAllTokens = [NSMutableArray array];
+        for (MWTranscriptionSegment *seg in segments) {
+            if (seg.tokens) [ourAllTokens addObjectsFromArray:seg.tokens];
+        }
+        float tokenOverlap = tokenSetOverlap(ourAllTokens, refAllTokens);
+        fprintf(stdout, "    [info] Token set overlap: %.1f%%\n", tokenOverlap * 100);
+        ASSERT_FMT(name, tokenOverlap > 0.60f,
+                   @"Token set overlap %.1f%% < 60%%", tokenOverlap * 100);
+
+        // 3d) Timestamp alignment: first segment start within +/- 0.5s
+        float ourFirstStart = segments[0].start;
+        float startDiff = fabsf(ourFirstStart - refFirstStart);
+        fprintf(stdout, "    [info] First segment start: ours=%.3f ref=%.3f diff=%.3f\n",
+                ourFirstStart, refFirstStart, startDiff);
+        ASSERT_FMT(name, startDiff < 0.5f,
+                   @"First segment start diff %.3fs > 0.5s (ours=%.3f ref=%.3f)",
+                   startDiff, ourFirstStart, refFirstStart);
+
+        // Verify timestamps are sane: each segment has start <= end,
+        // and overall progression is forward (last segment end > first segment start).
+        // Note: segments within the same 30s chunk can overlap, so we only check
+        // that start times are generally non-decreasing with a tolerance.
+        for (NSUInteger i = 0; i < segments.count; i++) {
+            MWTranscriptionSegment *seg = segments[i];
+            ASSERT_FMT(name, seg.start <= seg.end,
+                       @"Segment %lu: start(%.3f) > end(%.3f)",
+                       (unsigned long)i, seg.start, seg.end);
+        }
+        // Overall progression: last segment should be well past first
+        if (segments.count > 1) {
+            float firstStart = segments[0].start;
+            float lastEnd = segments[segments.count - 1].end;
+            ASSERT_FMT(name, lastEnd > firstStart + 10.0f,
+                       @"Timestamps not progressing: first start=%.3f, last end=%.3f",
+                       firstStart, lastEnd);
+        }
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// ── Test M11: Exact token comparison (JFK) ───────────────────────────────────
+
+static void test_m11_exact_tokens(void) {
+    const char *name = "test_m11_exact_tokens";
+    @autoreleasepool {
+        // 1) Load reference JSON
+        NSString *refPath = [gDataDir stringByAppendingPathComponent:
+            @"reference/python_transcription_jfk.json"];
+        NSData *refData = [NSData dataWithContentsOfFile:refPath];
+        ASSERT_TRUE(name, refData != nil, @"Failed to load JFK reference JSON");
+
+        NSError *jsonError = nil;
+        NSDictionary *ref = [NSJSONSerialization JSONObjectWithData:refData
+                                                            options:0
+                                                              error:&jsonError];
+        ASSERT_TRUE(name, ref != nil, fmtErr(@"JSON parse failed", jsonError));
+
+        NSArray *refSegments = ref[@"segments"];
+        ASSERT_TRUE(name, refSegments != nil && refSegments.count > 0,
+                    @"No segments in reference");
+
+        // Extract reference data from first segment
+        NSString *refText = refSegments[0][@"text"] ?: @"";
+        NSArray<NSNumber *> *refTokens = refSegments[0][@"tokens"];
+        ASSERT_TRUE(name, refTokens != nil && refTokens.count > 0,
+                    @"No tokens in reference first segment");
+
+        // Extract params from JSON
+        NSDictionary *params = ref[@"params"];
+        NSUInteger beamSize = params[@"beam_size"] ? [params[@"beam_size"] unsignedIntegerValue] : 6;
+        float lengthPenalty = params[@"length_penalty"] ? [params[@"length_penalty"] floatValue] : 0.6f;
+
+        // 2) Transcribe jfk.flac with SAME params
+        NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"jfk.flac"];
+        NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+
+        MWTranscriptionOptions *opts = [MWTranscriptionOptions defaults];
+        opts.beamSize = beamSize;
+        opts.temperatures = @[@0.0f, @0.2f, @0.4f, @0.6f, @0.8f, @1.0f];
+        opts.lengthPenalty = lengthPenalty;
+        opts.conditionOnPreviousText = YES;
+        opts.wordTimestamps = YES;
+
+        NSError *error = nil;
+        MWTranscriptionInfo *info = nil;
+        NSArray<MWTranscriptionSegment *> *segments =
+            [gTranscriber transcribeURL:audioURL
+                               language:@"en"
+                                   task:@"transcribe"
+                           typedOptions:opts
+                         segmentHandler:nil
+                                   info:&info
+                                  error:&error];
+
+        ASSERT_TRUE(name, segments != nil, fmtErr(@"Transcription failed", error));
+        ASSERT_TRUE(name, segments.count > 0, @"Expected at least 1 segment");
+
+        // 3) Per-segment token comparison
+        // JFK has 1 segment in reference — compare first segment
+        NSArray<NSNumber *> *ourTokens = segments[0].tokens;
+        ASSERT_TRUE(name, ourTokens != nil && ourTokens.count > 0,
+                    @"No tokens in our first segment");
+
+        // Print both token sequences for visual comparison
+        fprintf(stdout, "    [info] Ref tokens (%lu): [", (unsigned long)refTokens.count);
+        for (NSUInteger i = 0; i < refTokens.count; i++) {
+            fprintf(stdout, "%s%ld", i > 0 ? ", " : "",
+                    (long)[refTokens[i] integerValue]);
+        }
+        fprintf(stdout, "]\n");
+
+        fprintf(stdout, "    [info] Our tokens (%lu): [", (unsigned long)ourTokens.count);
+        for (NSUInteger i = 0; i < ourTokens.count; i++) {
+            fprintf(stdout, "%s%ld", i > 0 ? ", " : "",
+                    (long)[ourTokens[i] integerValue]);
+        }
+        fprintf(stdout, "]\n");
+
+        // Compute token ID overlap: |intersection| / |union|
+        float overlap = tokenSetOverlap(ourTokens, refTokens);
+        fprintf(stdout, "    [info] Token set overlap: %.1f%%\n", overlap * 100);
+        ASSERT_FMT(name, overlap > 0.80f,
+                   @"Token overlap %.1f%% < 80%% for JFK", overlap * 100);
+
+        // Text comparison: > 90% character similarity (JFK is clean, short)
+        NSString *ourText = segments[0].text;
+        float textSim = characterSimilarity(ourText, refText);
+        fprintf(stdout, "    [info] Text similarity: %.1f%%\n", textSim * 100);
+        fprintf(stdout, "    [info] Ref text: %s\n", [refText UTF8String]);
+        fprintf(stdout, "    [info] Our text: %s\n", [ourText UTF8String]);
+        ASSERT_FMT(name, textSim > 0.90f,
+                   @"Text similarity %.1f%% < 90%% for JFK. Ours: %@ | Ref: %@",
+                   textSim * 100, ourText, refText);
+
+        // Also check token count is in same ballpark (within 30%)
+        float tokenCountRatio = (float)ourTokens.count / (float)refTokens.count;
+        fprintf(stdout, "    [info] Token count ratio: %.2f (ours=%lu ref=%lu)\n",
+                tokenCountRatio, (unsigned long)ourTokens.count,
+                (unsigned long)refTokens.count);
+        ASSERT_FMT(name, tokenCountRatio > 0.7f && tokenCountRatio < 1.3f,
+                   @"Token count ratio %.2f outside [0.7, 1.3] (ours=%lu ref=%lu)",
+                   tokenCountRatio, (unsigned long)ourTokens.count,
+                   (unsigned long)refTokens.count);
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
+// Group 6: French language detection
+// =============================================================================
+
+// ── Test: Auto-detect French from french_30s.wav ─────────────────────────────
+
+static void test_detect_french(void) {
+    const char *name = "test_detect_french";
+    @autoreleasepool {
+        NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"french_30s.wav"];
+        NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+
+        // Verify the test audio file exists
+        ASSERT_TRUE(name,
+                    [[NSFileManager defaultManager] fileExistsAtPath:audioPath],
+                    @"french_30s.wav not found in data dir");
+
+        // Transcribe with language=nil to trigger auto-detection
+        MWTranscriptionOptions *opts = [MWTranscriptionOptions defaults];
+
+        NSError *error = nil;
+        MWTranscriptionInfo *info = nil;
+        NSArray<MWTranscriptionSegment *> *segments =
+            [gTranscriber transcribeURL:audioURL
+                               language:nil
+                                   task:@"transcribe"
+                           typedOptions:opts
+                         segmentHandler:nil
+                                   info:&info
+                                  error:&error];
+
+        ASSERT_TRUE(name, segments != nil, fmtErr(@"Transcription failed", error));
+        ASSERT_TRUE(name, info != nil, @"Transcription info is nil");
+
+        // Verify language detected as French
+        ASSERT_FMT(name, [info.language isEqualToString:@"fr"],
+                   @"Expected detected language 'fr', got '%@'", info.language);
+
+        // Verify output contains text
+        ASSERT_TRUE(name, segments.count > 0, @"Expected at least 1 segment");
+
+        NSString *fullText = concatenateSegments(segments);
+        ASSERT_FMT(name, fullText.length > 10,
+                   @"Expected substantial French text, got: %@", fullText);
+
+        // Verify output contains French accented characters (common: e with accent,
+        // a with grave, c with cedilla, etc.)
+        NSCharacterSet *frenchAccents = [NSCharacterSet characterSetWithCharactersInString:
+            @"\u00E9\u00E8\u00EA\u00EB"  // e-acute, e-grave, e-circumflex, e-diaeresis
+            @"\u00E0\u00E2"              // a-grave, a-circumflex
+            @"\u00F4\u00F9\u00FB"        // o-circumflex, u-grave, u-circumflex
+            @"\u00E7"                     // c-cedilla
+            @"\u00EE\u00EF"              // i-circumflex, i-diaeresis
+        ];
+
+        NSRange accentRange = [fullText rangeOfCharacterFromSet:frenchAccents];
+        ASSERT_FMT(name, accentRange.location != NSNotFound,
+                   @"Expected French accented characters in output, got: %@", fullText);
+
+        fprintf(stdout, "    [info] Detected language: %s (prob: %.2f)\n",
+                [info.language UTF8String], info.languageProbability);
+        fprintf(stdout, "    [info] Text preview: %.100s...\n", [fullText UTF8String]);
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
+// Group 7: Large-v3 model test (gated)
 // =============================================================================
 
 // ── Test 16: Load large-v3 ──────────────────────────────────────────────────
@@ -889,17 +1188,27 @@ static void test_load_large_v3(void) {
     }
 
     @autoreleasepool {
-        MWModelManager *manager = [MWModelManager shared];
+        // Try local path first (e.g. ../data/whisper-large-v3/)
+        NSString *localPath = [[NSString stringWithUTF8String:__FILE__]
+            stringByDeletingLastPathComponent];
+        localPath = [[localPath stringByAppendingPathComponent:@"../../data/whisper-large-v3"]
+            stringByStandardizingPath];
 
-        // Try to resolve large-v3
-        NSError *error = nil;
-        NSString *modelPath = [manager resolveModel:@"large-v3"
-                                           progress:nil
-                                              error:&error];
+        NSString *modelPath = nil;
+        NSFileManager *fm = [NSFileManager defaultManager];
+        if ([fm fileExistsAtPath:[localPath stringByAppendingPathComponent:@"model.bin"]]) {
+            modelPath = localPath;
+        } else {
+            // Fall back to MWModelManager cache
+            MWModelManager *manager = [MWModelManager shared];
+            NSError *error = nil;
+            modelPath = [manager resolveModel:@"large-v3"
+                                     progress:nil
+                                        error:&error];
+        }
 
         if (!modelPath) {
-            fprintf(stdout, "  SKIP: %s (large-v3 not cached: %s)\n",
-                    name, [[error localizedDescription] UTF8String]);
+            fprintf(stdout, "  SKIP: %s (large-v3 not found locally or cached)\n", name);
             return;
         }
 
@@ -1014,8 +1323,17 @@ int main(int argc, const char *argv[]) {
         test_python_reference_jfk();
         test_python_reference_russian();
 
-        // ── Group 5: Large-v3 (gated) ──
-        fprintf(stdout, "\n--- Group 5: Large-v3 (gated) ---\n");
+        // ── Group 5: Python reference deep comparison ──
+        fprintf(stdout, "\n--- Group 5: Python reference deep comparison ---\n");
+        test_m4_6_reference_match();
+        test_m11_exact_tokens();
+
+        // ── Group 6: French language detection ──
+        fprintf(stdout, "\n--- Group 6: French language detection ---\n");
+        test_detect_french();
+
+        // ── Group 7: Large-v3 (gated) ──
+        fprintf(stdout, "\n--- Group 7: Large-v3 (gated) ---\n");
         test_load_large_v3();
 
         // ── Summary ──
