@@ -3,17 +3,18 @@
 
 #import "MWModelManager.h"
 #import "MWTranscriber.h"  // For MWErrorDomain and MWErrorCode
+#import "MWHelpers.h"      // For MWLog
 
 #include <sys/stat.h>
 
-// ── Error codes for model manager ──────────────────────────────────────────
+// -- Error codes for model manager ------------------------------------------
 
 static const NSInteger kMWErrorModelDownloadFailed = 600;
 static const NSInteger kMWErrorModelValidationFailed = 601;
 static const NSInteger kMWErrorModelNotFound = 602;
 static const NSInteger kMWErrorCacheDirectoryFailed = 603;
 
-// ── Model alias map ────────────────────────────────────────────────────────
+// -- Model alias map --------------------------------------------------------
 
 static NSDictionary<NSString *, NSString *> *modelAliasMap(void) {
     static NSDictionary *map = nil;
@@ -43,7 +44,7 @@ static NSDictionary<NSString *, NSString *> *modelAliasMap(void) {
     return map;
 }
 
-// ── Required model files ───────────────────────────────────────────────────
+// -- Required model files ---------------------------------------------------
 
 static NSArray<NSString *> *requiredModelFiles(void) {
     return @[@"model.bin", @"tokenizer.json", @"config.json"];
@@ -68,7 +69,7 @@ static NSArray<NSString *> *allDownloadableFiles(void) {
     ];
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------------
 
 static NSString *sanitizeRepoID(NSString *repoID) {
     return [repoID stringByReplacingOccurrencesOfString:@"/" withString:@"--"];
@@ -116,10 +117,33 @@ static BOOL validateModelDirectory(NSString *path) {
     return hasVocab;
 }
 
-// ── Download delegate for progress tracking ────────────────────────────────
+/// Validate that a repo ID matches the expected HuggingFace format:
+/// owner/repo where each part contains only alphanumeric, dot, hyphen, underscore.
+static BOOL isValidRepoID(NSString *repoID) {
+    static NSRegularExpression *regex = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        regex = [[NSRegularExpression
+            regularExpressionWithPattern:@"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"
+            options:0 error:nil] retain];
+    });
+    NSRange fullRange = NSMakeRange(0, repoID.length);
+    return [regex numberOfMatchesInString:repoID options:0 range:fullRange] > 0;
+}
+
+// -- Download delegate (streams to disk) ------------------------------------
+//
+// Fix 1 (CRITICAL): Write each received chunk directly to a .partial file on
+// disk instead of accumulating in NSMutableData.  Memory usage stays constant
+// at ~64 KB per NSURLSession chunk regardless of model size.
+//
+// Fix 3+4 (HIGH): Properly retain/release the dispatch_semaphore under MRC.
+//
+// Fix 5 (HIGH): Enforce HTTPS on redirects via willPerformHTTPRedirection:.
 
 @interface MWDownloadDelegate : NSObject <NSURLSessionDataDelegate> {
-    NSMutableData *_receivedData;
+    NSFileHandle *_fileHandle;
+    NSString *_partialPath;
     int64_t _totalBytesExpected;
     int64_t _bytesReceived;
     MWDownloadProgressBlock _progressBlock;
@@ -129,12 +153,15 @@ static BOOL validateModelDirectory(NSString *path) {
     NSInteger _statusCode;
 }
 
-@property (nonatomic, readonly) NSData *receivedData;
 @property (nonatomic, readonly) NSError *error;
 @property (nonatomic, readonly) NSInteger statusCode;
+@property (nonatomic, readonly) int64_t totalBytesExpected;
+@property (nonatomic, readonly) int64_t bytesReceived;
 
 - (instancetype)initWithProgressBlock:(MWDownloadProgressBlock)progress
                              fileName:(NSString *)fileName
+                          partialPath:(NSString *)partialPath
+                       existingBytes:(int64_t)existingBytes
                             semaphore:(dispatch_semaphore_t)semaphore;
 @end
 
@@ -142,32 +169,40 @@ static BOOL validateModelDirectory(NSString *path) {
 
 - (instancetype)initWithProgressBlock:(MWDownloadProgressBlock)progress
                              fileName:(NSString *)fileName
+                          partialPath:(NSString *)partialPath
+                       existingBytes:(int64_t)existingBytes
                             semaphore:(dispatch_semaphore_t)semaphore {
     self = [super init];
     if (self) {
-        _receivedData = [[NSMutableData alloc] init];
+        _fileHandle = nil;
+        _partialPath = [partialPath copy];
         _totalBytesExpected = -1;
-        _bytesReceived = 0;
+        _bytesReceived = existingBytes;
         _progressBlock = [progress copy];
         _fileName = [fileName copy];
         _error = nil;
         _semaphore = semaphore;
+        dispatch_retain(_semaphore);  // Fix 4: retain under MRC
         _statusCode = 0;
     }
     return self;
 }
 
 - (void)dealloc {
-    [_receivedData release];
+    [_fileHandle closeFile];
+    [_fileHandle release];
+    [_partialPath release];
     [_progressBlock release];
     [_fileName release];
     [_error release];
+    dispatch_release(_semaphore);  // Fix 4: release under MRC
     [super dealloc];
 }
 
-- (NSData *)receivedData { return _receivedData; }
 - (NSError *)error { return _error; }
 - (NSInteger)statusCode { return _statusCode; }
+- (int64_t)totalBytesExpected { return _totalBytesExpected; }
+- (int64_t)bytesReceived { return _bytesReceived; }
 
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
@@ -180,15 +215,35 @@ didReceiveResponse:(NSURLResponse *)response
             completionHandler(NSURLSessionResponseCancel);
             return;
         }
-        _totalBytesExpected = httpResponse.expectedContentLength;
+        int64_t contentLength = httpResponse.expectedContentLength;
+        if (_statusCode == 206) {
+            // Partial content: total = existing + remaining
+            _totalBytesExpected = _bytesReceived + contentLength;
+        } else {
+            _totalBytesExpected = contentLength;
+            // Server ignored Range request -- restart from scratch
+            _bytesReceived = 0;
+        }
     }
     completionHandler(NSURLSessionResponseAllow);
 }
 
+// Fix 1 (CRITICAL): Stream each data chunk directly to disk.
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-    [_receivedData appendData:data];
+    if (!_fileHandle) {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        if (_bytesReceived == 0 || ![fm fileExistsAtPath:_partialPath]) {
+            // Create new file (or overwrite if server ignored Range)
+            [fm createFileAtPath:_partialPath contents:nil attributes:nil];
+        }
+        _fileHandle = [[NSFileHandle fileHandleForWritingAtPath:_partialPath] retain];
+        if (_bytesReceived > 0) {
+            [_fileHandle seekToEndOfFile];
+        }
+    }
+    [_fileHandle writeData:data];
     _bytesReceived += (int64_t)data.length;
 
     if (_progressBlock) {
@@ -199,6 +254,11 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
+    // Flush and close the file handle before signaling.
+    [_fileHandle closeFile];
+    [_fileHandle release];
+    _fileHandle = nil;
+
     if (error) {
         [_error release];
         _error = [error retain];
@@ -206,9 +266,22 @@ didCompleteWithError:(NSError *)error {
     dispatch_semaphore_signal(_semaphore);
 }
 
+// Fix 5 (HIGH): Reject non-HTTPS redirects to prevent MITM downgrade attacks.
+- (void)URLSession:(NSURLSession *)session
+              task:(NSURLSessionTask *)task
+willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+        newRequest:(NSURLRequest *)request
+ completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler {
+    if ([request.URL.scheme isEqualToString:@"https"]) {
+        completionHandler(request);  // Allow HTTPS redirects
+    } else {
+        completionHandler(nil);  // Block non-HTTPS redirects
+    }
+}
+
 @end
 
-// ── MWModelManager ─────────────────────────────────────────────────────────
+// -- MWModelManager ---------------------------------------------------------
 
 @implementation MWModelManager {
     NSString *_cacheDirectory;
@@ -236,18 +309,23 @@ didCompleteWithError:(NSError *)error {
     [super dealloc];
 }
 
+// Fix 6 (HIGH): Thread safety for cacheDirectory via @synchronized.
 - (NSString *)cacheDirectory {
-    return _cacheDirectory;
-}
-
-- (void)setCacheDirectory:(NSString *)cacheDirectory {
-    if (_cacheDirectory != cacheDirectory) {
-        [_cacheDirectory release];
-        _cacheDirectory = [cacheDirectory copy];
+    @synchronized(self) {
+        return [[_cacheDirectory retain] autorelease];
     }
 }
 
-// ── Resolve model ──────────────────────────────────────────────────────────
+- (void)setCacheDirectory:(NSString *)cacheDirectory {
+    @synchronized(self) {
+        if (_cacheDirectory != cacheDirectory) {
+            [_cacheDirectory release];
+            _cacheDirectory = [cacheDirectory copy];
+        }
+    }
+}
+
+// -- Resolve model ----------------------------------------------------------
 
 - (nullable NSString *)resolveModel:(NSString *)sizeOrPath
                            progress:(nullable MWDownloadProgressBlock)progress
@@ -263,6 +341,20 @@ didCompleteWithError:(NSError *)error {
     if (alias) {
         repoID = alias;
     } else if ([sizeOrPath containsString:@"/"]) {
+        // Fix 2 (CRITICAL): Validate repo ID format to prevent URL injection.
+        if (!isValidRepoID(sizeOrPath)) {
+            if (error) {
+                *error = [NSError errorWithDomain:MWErrorDomain
+                                             code:kMWErrorModelNotFound
+                                         userInfo:@{
+                    NSLocalizedDescriptionKey:
+                        [NSString stringWithFormat:@"Invalid repo ID format: '%@'. "
+                         "Expected 'owner/model' with alphanumeric characters, "
+                         "dots, hyphens, and underscores only.", sizeOrPath]
+                }];
+            }
+            return nil;
+        }
         // Treat as repo ID directly
         repoID = sizeOrPath;
     } else {
@@ -282,28 +374,33 @@ didCompleteWithError:(NSError *)error {
 
     // 3. Check cache
     NSString *sanitized = sanitizeRepoID(repoID);
-    NSString *cachePath = [_cacheDirectory stringByAppendingPathComponent:sanitized];
+    NSString *cachePath;
+    @synchronized(self) {
+        cachePath = [[_cacheDirectory stringByAppendingPathComponent:sanitized] retain];
+    }
 
     if (validateModelDirectory(cachePath)) {
-        return cachePath;
+        return [cachePath autorelease];
     }
 
     // 4. Download
-    return [self downloadModel:repoID toCachePath:cachePath progress:progress error:error];
+    NSString *result = [self downloadModel:repoID toCachePath:cachePath progress:progress error:error];
+    [cachePath release];
+    return result;
 }
 
-// ── Download ───────────────────────────────────────────────────────────────
+// -- Download ---------------------------------------------------------------
 
 - (nullable NSString *)downloadModel:(NSString *)repoID
                          toCachePath:(NSString *)cachePath
                             progress:(nullable MWDownloadProgressBlock)progress
                                error:(NSError **)error {
-    // Ensure cache directory exists
+    // Fix 8 (HIGH): Create cache directory with restrictive permissions (0700).
     NSFileManager *fm = [NSFileManager defaultManager];
     NSError *dirError = nil;
     if (![fm createDirectoryAtPath:cachePath
        withIntermediateDirectories:YES
-                        attributes:nil
+                        attributes:@{NSFilePosixPermissions: @(0700)}
                              error:&dirError]) {
         if (error) {
             *error = [NSError errorWithDomain:MWErrorDomain
@@ -336,9 +433,22 @@ didCompleteWithError:(NSError *)error {
             BOOL isOptional = [vocabularyAlternatives() containsObject:fileName] ||
                               [optionalModelFiles() containsObject:fileName];
             if (isOptional) {
+                // Fix 13 (MEDIUM): Log skipped optional files instead of silent swallow.
+                if (error && *error) {
+                    MWLog(@"[MetalWhisper] Optional file %@ not available (skipped): %@",
+                          fileName, [*error localizedDescription]);
+                } else {
+                    MWLog(@"[MetalWhisper] Optional file %@ not available (skipped)", fileName);
+                }
                 if (error) *error = nil;
+                // Fix 10 (MEDIUM): Clean partial file for optional files too.
+                NSString *partialPath = [destPath stringByAppendingString:@".partial"];
+                [fm removeItemAtPath:partialPath error:nil];
                 continue;
             }
+            // Fix 10 (MEDIUM): Clean partial file on required file failure.
+            NSString *partialPath = [destPath stringByAppendingString:@".partial"];
+            [fm removeItemAtPath:partialPath error:nil];
             // Required file failed -- abort
             return nil;
         }
@@ -371,10 +481,24 @@ didCompleteWithError:(NSError *)error {
                       error:(NSError **)error {
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
 
+    // Check for partial download to support resumption
+    NSString *partialPath = [destPath stringByAppendingString:@".partial"];
+    NSFileManager *fm = [NSFileManager defaultManager];
+
+    int64_t existingBytes = 0;
+    if ([fm fileExistsAtPath:partialPath]) {
+        NSDictionary *attrs = [fm attributesOfItemAtPath:partialPath error:nil];
+        existingBytes = [attrs fileSize];
+    }
+
+    // Fix 1 (CRITICAL): Delegate streams to disk; pass partialPath so it can
+    // open the file handle and write chunks as they arrive.
     MWDownloadDelegate *delegate =
-        [[[MWDownloadDelegate alloc] initWithProgressBlock:progress
+        [[MWDownloadDelegate alloc] initWithProgressBlock:progress
                                                  fileName:fileName
-                                                semaphore:semaphore] autorelease];
+                                              partialPath:partialPath
+                                           existingBytes:existingBytes
+                                                semaphore:semaphore];
 
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
     config.timeoutIntervalForRequest = 120.0;   // 2 min between data chunks
@@ -384,19 +508,10 @@ didCompleteWithError:(NSError *)error {
                                                           delegate:delegate
                                                      delegateQueue:nil];
 
-    // Check for partial download to support resumption
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    NSString *partialPath = [destPath stringByAppendingString:@".partial"];
-    NSFileManager *fm = [NSFileManager defaultManager];
-
-    int64_t existingBytes = 0;
-    if ([fm fileExistsAtPath:partialPath]) {
-        NSDictionary *attrs = [fm attributesOfItemAtPath:partialPath error:nil];
-        existingBytes = [attrs fileSize];
-        if (existingBytes > 0) {
-            NSString *rangeHeader = [NSString stringWithFormat:@"bytes=%lld-", existingBytes];
-            [request setValue:rangeHeader forHTTPHeaderField:@"Range"];
-        }
+    if (existingBytes > 0) {
+        NSString *rangeHeader = [NSString stringWithFormat:@"bytes=%lld-", existingBytes];
+        [request setValue:rangeHeader forHTTPHeaderField:@"Range"];
     }
 
     NSURLSessionDataTask *task = [session dataTaskWithRequest:request];
@@ -416,6 +531,8 @@ didCompleteWithError:(NSError *)error {
                      fileName, [url absoluteString], [delegate.error localizedDescription]]
             }];
         }
+        [delegate release];
+        dispatch_release(semaphore);  // Fix 3: release semaphore under MRC
         return NO;
     }
 
@@ -430,12 +547,16 @@ didCompleteWithError:(NSError *)error {
                      (long)delegate.statusCode, fileName, [url absoluteString]]
             }];
         }
+        [delegate release];
+        dispatch_release(semaphore);  // Fix 3
         return NO;
     }
 
-    // Write data
-    NSData *data = delegate.receivedData;
-    if (!data || data.length == 0) {
+    // Fix 9 (HIGH): Verify received size matches expected Content-Length.
+    int64_t totalExpected = delegate.totalBytesExpected;
+    int64_t totalReceived = delegate.bytesReceived;
+
+    if (totalReceived == 0) {
         if (error) {
             *error = [NSError errorWithDomain:MWErrorDomain
                                          code:kMWErrorModelDownloadFailed
@@ -444,25 +565,28 @@ didCompleteWithError:(NSError *)error {
                     [NSString stringWithFormat:@"Empty response downloading %@", fileName]
             }];
         }
+        [delegate release];
+        dispatch_release(semaphore);  // Fix 3
         return NO;
     }
 
-    // If we had a partial download with Range request, append; otherwise write fresh
-    if (existingBytes > 0 && delegate.statusCode == 206) {
-        // Append to partial file
-        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:partialPath];
-        if (fh) {
-            [fh seekToEndOfFile];
-            [fh writeData:data];
-            [fh closeFile];
-        } else {
-            // Partial file handle failed, write fresh
-            [data writeToFile:partialPath atomically:YES];
+    if (totalExpected > 0 && totalReceived != totalExpected) {
+        if (error) {
+            *error = [NSError errorWithDomain:MWErrorDomain
+                                         code:kMWErrorModelDownloadFailed
+                                     userInfo:@{
+                NSLocalizedDescriptionKey:
+                    [NSString stringWithFormat:@"Incomplete download of %@: received %lld of %lld bytes",
+                     fileName, totalReceived, totalExpected]
+            }];
         }
-    } else {
-        // Write fresh (full response)
-        [data writeToFile:partialPath atomically:YES];
+        [delegate release];
+        dispatch_release(semaphore);  // Fix 3
+        return NO;
     }
+
+    [delegate release];
+    dispatch_release(semaphore);  // Fix 3: release semaphore under MRC
 
     // Move partial to final destination
     NSError *moveError = nil;
@@ -485,7 +609,7 @@ didCompleteWithError:(NSError *)error {
     return YES;
 }
 
-// ── Cache queries ──────────────────────────────────────────────────────────
+// -- Cache queries ----------------------------------------------------------
 
 - (BOOL)isModelCached:(NSString *)sizeOrPath {
     // Check local path
@@ -504,7 +628,10 @@ didCompleteWithError:(NSError *)error {
     }
 
     NSString *sanitized = sanitizeRepoID(repoID);
-    NSString *cachePath = [_cacheDirectory stringByAppendingPathComponent:sanitized];
+    NSString *cachePath;
+    @synchronized(self) {
+        cachePath = [_cacheDirectory stringByAppendingPathComponent:sanitized];
+    }
     return validateModelDirectory(cachePath);
 }
 
@@ -512,20 +639,25 @@ didCompleteWithError:(NSError *)error {
     NSFileManager *fm = [NSFileManager defaultManager];
     NSMutableArray *results = [NSMutableArray array];
 
+    NSString *cacheDir;
+    @synchronized(self) {
+        cacheDir = [[_cacheDirectory retain] autorelease];
+    }
+
     BOOL isDir = NO;
-    if (![fm fileExistsAtPath:_cacheDirectory isDirectory:&isDir] || !isDir) {
+    if (![fm fileExistsAtPath:cacheDir isDirectory:&isDir] || !isDir) {
         return results;
     }
 
     NSError *listError = nil;
-    NSArray<NSString *> *contents = [fm contentsOfDirectoryAtPath:_cacheDirectory
+    NSArray<NSString *> *contents = [fm contentsOfDirectoryAtPath:cacheDir
                                                            error:&listError];
     if (!contents) {
         return results;
     }
 
     for (NSString *dirName in contents) {
-        NSString *fullPath = [_cacheDirectory stringByAppendingPathComponent:dirName];
+        NSString *fullPath = [cacheDir stringByAppendingPathComponent:dirName];
         BOOL isDirEntry = NO;
         if (![fm fileExistsAtPath:fullPath isDirectory:&isDirEntry] || !isDirEntry) {
             continue;
@@ -575,7 +707,10 @@ didCompleteWithError:(NSError *)error {
     }
 
     NSString *sanitized = sanitizeRepoID(repoID);
-    NSString *cachePath = [_cacheDirectory stringByAppendingPathComponent:sanitized];
+    NSString *cachePath;
+    @synchronized(self) {
+        cachePath = [_cacheDirectory stringByAppendingPathComponent:sanitized];
+    }
 
     NSFileManager *fm = [NSFileManager defaultManager];
     if (![fm fileExistsAtPath:cachePath]) {
@@ -585,7 +720,7 @@ didCompleteWithError:(NSError *)error {
     return [fm removeItemAtPath:cachePath error:error];
 }
 
-// ── Class methods ──────────────────────────────────────────────────────────
+// -- Class methods ----------------------------------------------------------
 
 + (NSArray<NSString *> *)availableModels {
     return [[modelAliasMap() allKeys]

@@ -170,11 +170,18 @@
 - (NSDictionary *)toDictionary {
     NSMutableDictionary *dict = [NSMutableDictionary dictionary];
 
-    dict[@"beamSize"] = @(_beamSize);
-    dict[@"bestOf"] = @(_bestOf);
-    dict[@"patience"] = @(_patience);
-    dict[@"lengthPenalty"] = @(_lengthPenalty);
-    dict[@"repetitionPenalty"] = @(_repetitionPenalty);
+    // Fix 12 (MEDIUM): Clamp numeric fields to valid ranges.
+    NSUInteger beamSize = MAX(1u, MIN(_beamSize, 100u));
+    NSUInteger bestOf = MAX(1u, MIN(_bestOf, 100u));
+    float patience = MAX(0.0f, MIN(_patience, 10.0f));
+    float lengthPenalty = MAX(0.0f, MIN(_lengthPenalty, 10.0f));
+    float repetitionPenalty = MAX(0.0f, MIN(_repetitionPenalty, 10.0f));
+
+    dict[@"beamSize"] = @(beamSize);
+    dict[@"bestOf"] = @(bestOf);
+    dict[@"patience"] = @(patience);
+    dict[@"lengthPenalty"] = @(lengthPenalty);
+    dict[@"repetitionPenalty"] = @(repetitionPenalty);
     dict[@"noRepeatNgramSize"] = @(_noRepeatNgramSize);
     if (_temperatures) {
         dict[@"temperatures"] = _temperatures;

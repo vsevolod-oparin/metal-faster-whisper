@@ -371,11 +371,18 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
 /// Transcribe audio file asynchronously.
 /// Runs transcription on a background dispatch queue (QOS_CLASS_USER_INITIATED)
 /// and calls completionHandler on the main queue.
+///
+/// **Threading:**
+/// - `segmentHandler` is called on a background queue (QOS_CLASS_USER_INITIATED).
+///   Do not perform UI work directly in this handler. Use dispatch_async to main
+///   queue if UI updates are needed.
+/// - `completionHandler` is always called on the main queue.
+///
 /// @param url Audio file URL
 /// @param language Language code (nil for auto-detect)
 /// @param task "transcribe" or "translate"
 /// @param options Typed transcription options (nil for defaults)
-/// @param segmentHandler Called for each segment as it's produced (called on background queue)
+/// @param segmentHandler Called for each segment as it's produced (called on background queue -- see Threading note)
 /// @param completionHandler Called on main queue with results or error
 - (void)transcribeURL:(NSURL *)url
              language:(nullable NSString *)language

@@ -192,6 +192,66 @@ static void test_m9_unknown_model_error(void) {
     }
 }
 
+// ── Test: repo ID injection rejected ────────────────────────────────────────
+
+static void test_m9_repo_id_injection(void) {
+    @autoreleasepool {
+        const char *name = "m9_repo_id_injection";
+
+        MWModelManager *mgr = [MWModelManager shared];
+
+        // These should all be rejected — invalid repo ID format
+        NSArray<NSString *> *malicious = @[
+            @"../../etc/passwd",
+            @"owner/repo/../../evil",
+            @"owner repo",
+            @"owner/repo name with spaces",
+            @"owner/<script>alert(1)</script>",
+            @"/absolute/path/with/slash",
+            @"owner/repo?query=1",
+            @"owner/repo#fragment",
+            @"owner/repo%00null",
+        ];
+
+        for (NSString *badID in malicious) {
+            NSError *error = nil;
+            NSString *result = [mgr resolveModel:badID progress:nil error:&error];
+            if (result != nil) {
+                NSString *msg = FMT1(@"Expected nil for malicious repo ID '%@'", badID);
+                ASSERT_TRUE(name, NO, msg);
+                return;
+            }
+            if (error == nil) {
+                NSString *msg = FMT1(@"Expected error for malicious repo ID '%@'", badID);
+                ASSERT_TRUE(name, NO, msg);
+                return;
+            }
+        }
+
+        // These should be accepted — valid repo ID format
+        NSArray<NSString *> *valid = @[
+            @"Systran/faster-whisper-tiny",
+            @"mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+            @"user123/model_name.v2",
+            @"org-name/model-name",
+        ];
+
+        for (NSString *goodID in valid) {
+            NSError *error = nil;
+            // resolveModel will fail (model not cached/downloadable) but should NOT
+            // fail with "Invalid repo ID format" — it should get past the validation
+            NSString *result = [mgr resolveModel:goodID progress:nil error:&error];
+            if (error && [[error localizedDescription] containsString:@"Invalid repo ID"]) {
+                NSString *msg = FMT1(@"Valid repo ID '%@' was rejected", goodID);
+                ASSERT_TRUE(name, NO, msg);
+                return;
+            }
+        }
+
+        reportResult(name, YES, nil);
+    }
+}
+
 // ── Test: delete non-existent cached model ─────────────────────────────────
 
 static void test_m9_delete_nonexistent(void) {
@@ -338,6 +398,7 @@ int main(int argc, const char *argv[]) {
         test_m9_list_cached();
         test_m9_is_cached();
         test_m9_unknown_model_error();
+        test_m9_repo_id_injection();
         test_m9_delete_nonexistent();
         test_m9_custom_cache_dir();
 

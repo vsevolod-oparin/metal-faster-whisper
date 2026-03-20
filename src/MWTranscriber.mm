@@ -2429,6 +2429,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 }
 
 // ── Async transcription ─────────────────────────────────────────────────────
+// Threading: segmentHandler is called on a background queue (QOS_CLASS_USER_INITIATED).
+// completionHandler is dispatched to the main queue after transcription completes.
 
 - (void)transcribeURL:(NSURL *)url
              language:(nullable NSString *)language
