@@ -3,6 +3,7 @@
 #import <Foundation/Foundation.h>
 #import "MWFeatureExtractor.h"
 #import "MWTokenizer.h"
+#import "MWTranscriptionOptions.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -351,6 +352,39 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                                         segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *, BOOL *))segmentHandler
                                                                   info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
                                                                  error:(NSError **)error;
+
+// --- Typed-options convenience ---
+
+/// Transcribe audio file using typed MWTranscriptionOptions.
+/// Equivalent to transcribeURL:language:task:options:segmentHandler:info:error:
+/// with [options toDictionary].
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeURL:(NSURL *)url
+                                                     language:(nullable NSString *)language
+                                                         task:(NSString *)task
+                                            typedOptions:(nullable MWTranscriptionOptions *)options
+                                               segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+                                                         info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                        error:(NSError **)error;
+
+// --- Async Transcription (completion handler) ---
+
+/// Transcribe audio file asynchronously.
+/// Runs transcription on a background dispatch queue (QOS_CLASS_USER_INITIATED)
+/// and calls completionHandler on the main queue.
+/// @param url Audio file URL
+/// @param language Language code (nil for auto-detect)
+/// @param task "transcribe" or "translate"
+/// @param options Typed transcription options (nil for defaults)
+/// @param segmentHandler Called for each segment as it's produced (called on background queue)
+/// @param completionHandler Called on main queue with results or error
+- (void)transcribeURL:(NSURL *)url
+             language:(nullable NSString *)language
+                 task:(NSString *)task
+         typedOptions:(nullable MWTranscriptionOptions *)options
+       segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+    completionHandler:(void (^)(NSArray<MWTranscriptionSegment *> * _Nullable segments,
+                                MWTranscriptionInfo * _Nullable info,
+                                NSError * _Nullable error))completionHandler;
 
 // --- M0 test method (backward compat) ---
 

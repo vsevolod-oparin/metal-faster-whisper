@@ -2409,6 +2409,79 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     }
 }
 
+// ── Typed-options convenience ────────────────────────────────────────────────
+
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeURL:(NSURL *)url
+                                                     language:(nullable NSString *)language
+                                                         task:(NSString *)task
+                                            typedOptions:(nullable MWTranscriptionOptions *)options
+                                               segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+                                                         info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                        error:(NSError **)error {
+    NSDictionary *dict = [options toDictionary];
+    return [self transcribeURL:url
+                      language:language
+                          task:task
+                       options:dict
+                segmentHandler:segmentHandler
+                          info:outInfo
+                         error:error];
+}
+
+// ── Async transcription ─────────────────────────────────────────────────────
+
+- (void)transcribeURL:(NSURL *)url
+             language:(nullable NSString *)language
+                 task:(NSString *)task
+         typedOptions:(nullable MWTranscriptionOptions *)options
+       segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *segment, BOOL *stop))segmentHandler
+    completionHandler:(void (^)(NSArray<MWTranscriptionSegment *> * _Nullable segments,
+                                MWTranscriptionInfo * _Nullable info,
+                                NSError * _Nullable error))completionHandler {
+    // Prevent dealloc during async work (MRC).
+    [self retain];
+
+    // Capture inputs — copy blocks, retain objects.
+    NSURL *capturedURL = [url retain];
+    NSString *capturedLanguage = [language copy];
+    NSString *capturedTask = [task copy];
+    NSDictionary *optDict = [[options toDictionary] retain];
+    void (^capturedSegmentHandler)(MWTranscriptionSegment *, BOOL *) = [segmentHandler copy];
+    void (^capturedCompletionHandler)(NSArray *, MWTranscriptionInfo *, NSError *) = [completionHandler copy];
+
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *error = nil;
+        MWTranscriptionInfo *info = nil;
+        NSArray *segments = [self transcribeURL:capturedURL
+                                      language:capturedLanguage
+                                          task:capturedTask
+                                       options:optDict
+                                segmentHandler:capturedSegmentHandler
+                                          info:&info
+                                         error:&error];
+
+        // Retain results for cross-queue transfer.
+        [segments retain];
+        [info retain];
+        [error retain];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            capturedCompletionHandler(segments, info, error);
+
+            [segments release];
+            [info release];
+            [error release];
+            [capturedURL release];
+            [capturedLanguage release];
+            [capturedTask release];
+            [optDict release];
+            [capturedSegmentHandler release];
+            [capturedCompletionHandler release];
+            [self release];
+        });
+    });
+}
+
 // ── Silence encode test ─────────────────────────────────────────────────────
 
 - (nullable NSString *)encodeSilenceTestWithError:(NSError **)error {

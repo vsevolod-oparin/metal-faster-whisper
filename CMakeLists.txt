@@ -122,7 +122,9 @@ install(TARGETS MetalWhisper
 
 # Install public headers
 install(FILES
+    src/MetalWhisper.h
     src/MWTranscriber.h
+    src/MWTranscriptionOptions.h
     src/MWAudioDecoder.h
     src/MWFeatureExtractor.h
     src/MWConstants.h
