@@ -33,11 +33,7 @@ models/*.onnx
 models/*.mlpackage/
 models/*.mlmodelc/
 
-# Test audio data (copied from faster-whisper/tests/data)
-tests/data/*.wav
-tests/data/*.mp3
-tests/data/*.m4a
-tests/data/*.flac
+# Test reference data (large binary files, regenerate with tests/generate_*.py)
 tests/data/reference/*.raw
 
 # Temporary files
