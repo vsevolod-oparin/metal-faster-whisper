@@ -174,25 +174,27 @@ This processes up to 10000 chunks at once through the ONNX session. For very lon
 
 ## Test Gaps Still Remaining
 
-1. **Async API (`transcribeURL:...completionHandler:`)**: No test exercises the async completion handler path or verifies thread safety.
+1. ~~**Async API**~~: Now tested — `test_m10_async_transcribe` in test_m10_api and `e2e_async_api` in test_e2e.
 
 2. **Batched transcription with word timestamps**: The `transcribeBatchedAudio:` path with `wordTimestamps=YES` is tested indirectly via VAD tests but not with explicit token/word validation.
 
-3. **Multilingual per-segment re-detection**: The `multilingual=YES` option that re-detects language per 30s segment is untested.
+3. ~~**Multilingual per-segment re-detection**~~: Now tested — `test_multilingual_batch` in test_deferred.mm.
 
-4. **`clipTimestamps` option**: The clip_timestamps feature for transcribing sub-ranges of audio has no dedicated test.
+4. ~~**`clipTimestamps` option**~~: Now tested — `test_clip_timestamps` in test_deferred.mm.
 
-5. **`hallucinationSilenceThreshold`**: The hallucination filtering logic (lines 2002-2085) is complex and untested.
+5. ~~**`hallucinationSilenceThreshold`**~~: Now tested — `test_hallucination_skip` in test_deferred.mm.
 
-6. **`MWModelManager` download path**: Tests only check cached models; no test exercises actual HTTP download, resume, or error paths (these would require mocking).
+6. **`MWModelManager` download path**: Tests only check cached models; no test exercises actual HTTP download, resume, or error paths (would require mocking or network access).
 
-7. **`decodeAudioFromData:` with corrupted/invalid data**: No test passes invalid audio data to verify error handling.
+7. ~~**`decodeAudioFromData:` with corrupted/invalid data**~~: Now tested — `test_decode_from_data` and `test_decode_from_buffer` in test_coverage.mm.
 
-8. **Edge case: empty audio transcription**: While the code handles it (returns empty segments), no test verifies this path explicitly.
+8. ~~**Edge case: empty audio transcription**~~: Now tested — `e2e_empty_audio` in test_e2e.
 
-9. **`prefix` option**: The prefix parameter to `buildPrompt` is tested via `test_prompt_with_different_tokenizer` but not through the full transcription pipeline.
+9. ~~**`prefix` option**~~: Now tested — `test_prompt_with_prefix` in test_m4_3_prompt.
 
-10. **Error paths in generate**: No test verifies behavior when CT2 generate throws an exception (would require a corrupted model or specific input).
+10. ~~**Error paths in generate**~~: Now tested — `test_m4_4_error_recovery` in test_deferred.mm.
+
+**Remaining gaps:** #2 (batched + word timestamps explicit validation) and #6 (HTTP download mocking).
 
 ---
 

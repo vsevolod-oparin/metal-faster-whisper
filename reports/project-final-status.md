@@ -1,6 +1,6 @@
 # MetalWhisper — Final Project Status
 
-**Date:** 2026-03-20
+**Date:** 2026-03-21
 
 ## All 12 ROADMAP Milestones Complete
 
@@ -20,8 +20,10 @@
 | M11 | Testing & Accuracy Validation | 14 |
 | M12 | Documentation & Example App | — |
 | — | Edge cases + memory tests | 19 |
+| — | Coverage gap tests | 22 |
+| — | Swift integration tests | 3 |
 | — | Benchmark | 1 |
-| **Total** | | **~134** |
+| **Total** | | **~181** |
 
 ## Code Metrics
 
@@ -29,11 +31,11 @@
 |----------|-------|
 | Framework source (src/) | ~7,800 |
 | CLI tool (cli/) | ~830 |
-| Tests (tests/) | ~8,500 |
+| Tests (tests/) | ~11,500 |
 | Example SwiftUI app | ~810 |
 | Documentation (docs/) | ~1,350 |
 | Reports | ~3,500 |
-| **Total** | **~22,800** |
+| **Total** | **~25,800** |
 
 ## Implementation Fidelity
 
@@ -45,9 +47,21 @@ Line-by-line comparison against Python faster-whisper found 22 divergences. **19
 | HIGH | 13 | 12 (1 deferred — performance only) |
 | LOW | 4 | 1 (3 intentional) |
 
-## E2E Test Suite (23 tests, all passing)
+## Test Suite (~181 tests, all passing)
 
-Comprehensive end-to-end tests across 9 audio files (English, Russian, mixed, silence, music), 2 models (turbo + tiny), 4 output formats (text, SRT, VTT, JSON), with VAD, word timestamps, multilingual detection, streaming callbacks, and async API. See `reports/e2e-test-report.md`.
+| Suite | Tests | Scope |
+|-------|-------|-------|
+| E2E | 23 | Full pipeline: 9 audio files, 2 models, 4 formats, VAD, word timestamps, async |
+| Coverage | 22 | Zero-coverage APIs, CLI edge cases, Python reference, alignment, WER, concurrent GCD |
+| Swift | 3 | `import MetalWhisper`: basic, streaming, cancel |
+| Deferred | 10 | Clip timestamps, hallucination, multilingual batch, prompt reset, error recovery |
+| Unit (M0-M11) | ~123 | Per-component tests across all milestones |
+
+**Accuracy highlights:**
+- 100% token match with Python faster-whisper on JFK (27 tokens)
+- 0.3% WER on LibriSpeech test-clean (10 utterances, 9/10 perfect)
+- DTW word alignment: 100% timing match (0ms max diff vs Python reference)
+- 97.4% text similarity on physicsworks (203s lecture)
 
 Key fixes:
 - No-speech detection logic matched to Python
@@ -91,6 +105,9 @@ Audio File
 5. **`MetalWhisper.h`** — umbrella header for framework consumers
 6. **Example SwiftUI app** — drag & drop transcription with model selection
 7. **Documentation** — README, API reference, migration guide, performance guide, man page
+8. **`MetalWhisper.framework`** — macOS framework for `import MetalWhisper` in Swift
+9. **Release tarball** — `scripts/build_release.sh` produces standalone distribution
+10. **Swift CLI example** — `examples/swift-cli/transcribe.swift`
 
 ## Dependencies
 

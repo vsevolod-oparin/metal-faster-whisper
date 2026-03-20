@@ -19,6 +19,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <vector>
+#include <algorithm>
 
 // Variadic ASSERT for format strings with commas.
 #define ASSERT_FMT(name, cond, fmt, ...) do { \
@@ -1250,6 +1252,353 @@ static void test_load_large_v3(void) {
 }
 
 // =============================================================================
+// Group 8: Word alignment reference comparison (M5)
+// =============================================================================
+
+// Python faster-whisper reference: JFK, beam=6, word_timestamps=True, turbo f32 CPU
+// Generated with: model.transcribe('jfk.flac', beam_size=6, word_timestamps=True)
+static void test_m5_alignment(void) {
+    const char *name = "test_m5_alignment";
+
+    @autoreleasepool {
+        // Python reference word data (22 words)
+        struct RefWord { const char *word; float start; float end; float prob; };
+        static const RefWord pyRef[] = {
+            {" And",       0.00f, 0.52f, 0.787f},
+            {" so,",       0.52f, 0.86f, 0.996f},
+            {" my",        1.10f, 1.20f, 0.999f},
+            {" fellow",    1.20f, 1.54f, 0.999f},
+            {" Americans,",1.54f, 2.12f, 0.982f},
+            {" ask",       3.32f, 3.78f, 0.986f},
+            {" not",       3.78f, 4.34f, 0.981f},
+            {" what",      4.34f, 5.56f, 0.987f},
+            {" your",      5.56f, 5.80f, 0.996f},
+            {" country",   5.80f, 6.24f, 0.999f},
+            {" can",       6.24f, 6.62f, 1.000f},
+            {" do",        6.62f, 6.82f, 1.000f},
+            {" for",       6.82f, 7.06f, 0.999f},
+            {" you,",      7.06f, 7.40f, 1.000f},
+            {" ask",       7.78f, 8.52f, 0.998f},
+            {" what",      8.52f, 8.80f, 1.000f},
+            {" you",       8.80f, 9.04f, 0.997f},
+            {" can",       9.04f, 9.34f, 1.000f},
+            {" do",        9.34f, 9.56f, 1.000f},
+            {" for",       9.56f, 9.78f, 1.000f},
+            {" your",      9.78f, 9.96f, 0.999f},
+            {" country.",   9.96f, 10.34f, 1.000f},
+        };
+        static const int pyRefCount = 22;
+
+        // Transcribe JFK with word timestamps
+        NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"jfk.flac"];
+        NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+
+        MWTranscriptionOptions *opts = [MWTranscriptionOptions defaults];
+        opts.wordTimestamps = YES;
+        opts.beamSize = 6;
+
+        MWTranscriptionInfo *info = nil;
+        NSError *error = nil;
+        NSArray<MWTranscriptionSegment *> *segments =
+            [gTranscriber transcribeURL:audioURL
+                               language:@"en"
+                                   task:@"transcribe"
+                           typedOptions:opts
+                         segmentHandler:nil
+                                   info:&info
+                                  error:&error];
+
+        ASSERT_TRUE(name, segments != nil, fmtErr(@"Transcribe failed", error));
+
+        // Collect all words
+        NSMutableArray<MWWord *> *allWords = [NSMutableArray array];
+        for (MWTranscriptionSegment *seg in segments) {
+            if (seg.words) {
+                [allWords addObjectsFromArray:seg.words];
+            }
+        }
+
+        fprintf(stdout, "    [info] Word count: ours=%lu ref=%d\n",
+                (unsigned long)allWords.count, pyRefCount);
+
+        // Word count should match exactly
+        ASSERT_FMT(name, allWords.count == (NSUInteger)pyRefCount,
+                   @"Word count mismatch: ours=%lu ref=%d",
+                   (unsigned long)allWords.count, pyRefCount);
+
+        // Compare each word: text match, timing within tolerance
+        static const float kTimeTolerance = 0.10f; // 100ms tolerance
+        int textMatches = 0;
+        int timeMatches = 0;
+        float maxTimeDiff = 0.0f;
+
+        for (int i = 0; i < pyRefCount && i < (int)allWords.count; i++) {
+            MWWord *w = allWords[i];
+            NSString *refWord = [NSString stringWithUTF8String:pyRef[i].word];
+
+            // Text comparison (trimmed, lowercased)
+            NSString *ourTrimmed = [[w.word stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceCharacterSet]] lowercaseString];
+            NSString *refTrimmed = [[refWord stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceCharacterSet]] lowercaseString];
+
+            if ([ourTrimmed isEqualToString:refTrimmed]) {
+                textMatches++;
+            } else {
+                fprintf(stdout, "    [diff] Word %d: ours='%s' ref='%s'\n",
+                        i, [w.word UTF8String], pyRef[i].word);
+            }
+
+            // Timing comparison
+            float startDiff = fabsf((float)w.start - pyRef[i].start);
+            float endDiff = fabsf((float)w.end - pyRef[i].end);
+            float wordMaxDiff = fmaxf(startDiff, endDiff);
+            if (wordMaxDiff > maxTimeDiff) maxTimeDiff = wordMaxDiff;
+
+            if (startDiff <= kTimeTolerance && endDiff <= kTimeTolerance) {
+                timeMatches++;
+            } else {
+                fprintf(stdout, "    [diff] Word %d timing: ours=[%.2f-%.2f] ref=[%.2f-%.2f]\n",
+                        i, w.start, w.end, pyRef[i].start, pyRef[i].end);
+            }
+        }
+
+        float textMatchRate = (float)textMatches / pyRefCount;
+        float timeMatchRate = (float)timeMatches / pyRefCount;
+
+        fprintf(stdout, "    [info] Text match: %d/%d (%.0f%%), Time match: %d/%d (%.0f%%), max diff: %.3fs\n",
+                textMatches, pyRefCount, textMatchRate * 100,
+                timeMatches, pyRefCount, timeMatchRate * 100, maxTimeDiff);
+
+        // Require ≥90% text match and ≥80% timing match
+        ASSERT_FMT(name, textMatchRate >= 0.90f,
+                   @"Text match rate %.0f%% < 90%%", textMatchRate * 100);
+        ASSERT_FMT(name, timeMatchRate >= 0.80f,
+                   @"Time match rate %.0f%% < 80%%", timeMatchRate * 100);
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
+// Group 9: Concurrent transcription (M7)
+// =============================================================================
+
+static void test_m7_concurrent_files(void) {
+    const char *name = "test_m7_concurrent_files";
+
+    @autoreleasepool {
+        // Test processing multiple files via GCD dispatch.
+        // Metal/MPS doesn't support two model instances simultaneously, so we use
+        // a single transcriber with a serial dispatch queue (the documented pattern).
+        // This verifies that GCD dispatch + transcription works correctly.
+        NSString *audio1 = [gDataDir stringByAppendingPathComponent:@"jfk.flac"];
+        NSString *audio2 = [gDataDir stringByAppendingPathComponent:@"hotwords.mp3"];
+
+        NSURL *url1 = [NSURL fileURLWithPath:audio1];
+        NSURL *url2 = [NSURL fileURLWithPath:audio2];
+
+        __block NSArray *result1 = nil;
+        __block NSArray *result2 = nil;
+        __block NSError *txErr1 = nil;
+        __block NSError *txErr2 = nil;
+
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+        dispatch_queue_t queue = dispatch_queue_create("mw.test.concurrent", DISPATCH_QUEUE_SERIAL);
+
+        // Dispatch both transcriptions to a background serial queue
+        dispatch_async(queue, ^{
+            @autoreleasepool {
+                NSError *err = nil;
+                NSArray *segs = [gTranscriber transcribeURL:url1
+                                                  language:@"en"
+                                                      task:@"transcribe"
+                                                   options:nil
+                                            segmentHandler:nil
+                                                      info:nil
+                                                     error:&err];
+                result1 = [segs retain];
+                txErr1 = [err retain];
+            }
+        });
+
+        dispatch_async(queue, ^{
+            @autoreleasepool {
+                NSError *err = nil;
+                NSArray *segs = [gTranscriber transcribeURL:url2
+                                                  language:@"en"
+                                                      task:@"transcribe"
+                                                   options:nil
+                                            segmentHandler:nil
+                                                      info:nil
+                                                     error:&err];
+                result2 = [segs retain];
+                txErr2 = [err retain];
+            }
+        });
+
+        // Signal when queue drains
+        dispatch_async(queue, ^{
+            dispatch_semaphore_signal(sem);
+        });
+
+        long timeout = dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 120LL * NSEC_PER_SEC));
+        dispatch_release(sem);
+        dispatch_release(queue);
+
+        ASSERT_FMT(name, timeout == 0, @"GCD transcription timed out after 120s");
+        ASSERT_TRUE(name, result1 != nil, fmtErr(@"File 1 failed", txErr1));
+        ASSERT_TRUE(name, result2 != nil, fmtErr(@"File 2 failed", txErr2));
+
+        NSString *text1 = [concatenateSegments(result1) lowercaseString];
+        NSString *text2 = [concatenateSegments(result2) lowercaseString];
+
+        fprintf(stdout, "    [info] File 1: %lu segments, File 2: %lu segments\n",
+                (unsigned long)[result1 count], (unsigned long)[result2 count]);
+        fprintf(stdout, "    [info] Text 1: %.60s...\n", [text1 UTF8String]);
+        fprintf(stdout, "    [info] Text 2: %.60s...\n", [text2 UTF8String]);
+
+        ASSERT_FMT(name, [text1 containsString:@"country"] || [text1 containsString:@"americans"],
+                   @"File 1 (JFK) text incorrect: %@", text1);
+        ASSERT_FMT(name, text2.length > 0,
+                   @"File 2 (hotwords) produced empty text");
+
+        [result1 release];
+        [result2 release];
+        [txErr1 release];
+        [txErr2 release];
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
+// Group 10: WER on LibriSpeech subset (M11)
+// =============================================================================
+
+/// Compute word error rate between hypothesis and reference (both lowercased, split on whitespace).
+static float computeWER(NSString *hypothesis, NSString *reference) {
+    NSArray *hyp = [[hypothesis lowercaseString] componentsSeparatedByCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSArray *ref = [[reference lowercaseString] componentsSeparatedByCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+
+    // Filter empty strings
+    NSMutableArray *h = [NSMutableArray array];
+    NSMutableArray *r = [NSMutableArray array];
+    for (NSString *s in hyp) if (s.length > 0) [h addObject:s];
+    for (NSString *s in ref) if (s.length > 0) [r addObject:s];
+
+    NSUInteger hLen = h.count;
+    NSUInteger rLen = r.count;
+
+    if (rLen == 0) return (hLen == 0) ? 0.0f : 1.0f;
+
+    // Levenshtein distance at word level
+    std::vector<std::vector<NSUInteger>> dp(hLen + 1, std::vector<NSUInteger>(rLen + 1, 0));
+    for (NSUInteger i = 0; i <= hLen; i++) dp[i][0] = i;
+    for (NSUInteger j = 0; j <= rLen; j++) dp[0][j] = j;
+
+    for (NSUInteger i = 1; i <= hLen; i++) {
+        for (NSUInteger j = 1; j <= rLen; j++) {
+            NSUInteger cost = [h[i-1] isEqualToString:r[j-1]] ? 0 : 1;
+            dp[i][j] = std::min({dp[i-1][j] + 1, dp[i][j-1] + 1, dp[i-1][j-1] + cost});
+        }
+    }
+
+    return (float)dp[hLen][rLen] / (float)rLen;
+}
+
+static void test_m11_wer_librispeech(void) {
+    const char *name = "test_m11_wer_librispeech";
+
+    @autoreleasepool {
+        // Load LibriSpeech references
+        NSString *libriDir = [gProjectDir stringByAppendingPathComponent:@"tmp/librispeech"];
+        NSString *refsPath = [libriDir stringByAppendingPathComponent:@"references.json"];
+
+        NSFileManager *fm = [NSFileManager defaultManager];
+        if (![fm fileExistsAtPath:refsPath]) {
+            fprintf(stdout, "  SKIP: %s (no LibriSpeech data at %s)\n", name, [refsPath UTF8String]);
+            return;
+        }
+
+        NSData *jsonData = [NSData dataWithContentsOfFile:refsPath];
+        NSError *parseErr = nil;
+        NSArray *refs = [NSJSONSerialization JSONObjectWithData:jsonData
+                                                       options:0
+                                                         error:&parseErr];
+        ASSERT_TRUE(name, refs != nil, fmtErr(@"Failed to parse references.json", parseErr));
+        ASSERT_FMT(name, refs.count > 0, @"No references found");
+
+        float totalWER = 0.0f;
+        int count = 0;
+        int perfect = 0;
+
+        for (NSDictionary *ref in refs) {
+            @autoreleasepool {
+                NSString *audioFile = ref[@"audio"];
+                NSString *refText = ref[@"text"];
+                NSString *audioPath = [libriDir stringByAppendingPathComponent:audioFile];
+
+                if (![fm fileExistsAtPath:audioPath]) {
+                    fprintf(stdout, "    [warn] Missing audio: %s\n", [audioFile UTF8String]);
+                    continue;
+                }
+
+                NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+                NSError *txErr = nil;
+                NSArray<MWTranscriptionSegment *> *segments =
+                    [gTranscriber transcribeURL:audioURL
+                                      language:@"en"
+                                          task:@"transcribe"
+                                       options:nil
+                                segmentHandler:nil
+                                          info:nil
+                                         error:&txErr];
+
+                if (!segments) {
+                    fprintf(stdout, "    [warn] Transcription failed for %s: %s\n",
+                            [audioFile UTF8String], [[txErr localizedDescription] UTF8String]);
+                    continue;
+                }
+
+                NSString *hypText = concatenateSegments(segments);
+                // Strip leading/trailing whitespace and punctuation for WER comparison
+                NSString *cleanHyp = [[hypText stringByTrimmingCharactersInSet:
+                    [NSCharacterSet whitespaceAndNewlineCharacterSet]]
+                    stringByReplacingOccurrencesOfString:@"," withString:@""];
+                cleanHyp = [cleanHyp stringByReplacingOccurrencesOfString:@"." withString:@""];
+                cleanHyp = [cleanHyp stringByReplacingOccurrencesOfString:@"?" withString:@""];
+
+                float wer = computeWER(cleanHyp, refText);
+                totalWER += wer;
+                count++;
+                if (wer == 0.0f) perfect++;
+
+                if (wer > 0.15f) {
+                    fprintf(stdout, "    [info] %s WER=%.1f%% ref='%.50s' hyp='%.50s'\n",
+                            [ref[@"id"] UTF8String], wer * 100,
+                            [refText UTF8String], [cleanHyp UTF8String]);
+                }
+            }
+        }
+
+        ASSERT_FMT(name, count > 0, @"No utterances processed");
+
+        float avgWER = totalWER / count;
+        fprintf(stdout, "    [info] LibriSpeech WER: %.1f%% avg over %d utterances (%d perfect)\n",
+                avgWER * 100, count, perfect);
+
+        // Turbo model should achieve <10% WER on clean LibriSpeech English
+        ASSERT_FMT(name, avgWER < 0.10f,
+                   @"Average WER %.1f%% exceeds 10%% threshold", avgWER * 100);
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -1335,6 +1684,18 @@ int main(int argc, const char *argv[]) {
         // ── Group 7: Large-v3 (gated) ──
         fprintf(stdout, "\n--- Group 7: Large-v3 (gated) ---\n");
         test_load_large_v3();
+
+        // ── Group 8: Word alignment reference (M5) ──
+        fprintf(stdout, "\n--- Group 8: Word alignment reference (M5) ---\n");
+        test_m5_alignment();
+
+        // ── Group 9: Concurrent transcription (M7) ──
+        fprintf(stdout, "\n--- Group 9: Concurrent transcription (M7) ---\n");
+        test_m7_concurrent_files();
+
+        // ── Group 10: WER on LibriSpeech subset (M11) ──
+        fprintf(stdout, "\n--- Group 10: WER on LibriSpeech (M11) ---\n");
+        test_m11_wer_librispeech();
 
         // ── Summary ──
         fprintf(stdout, "\n=== Results: %d passed, %d failed ===\n",

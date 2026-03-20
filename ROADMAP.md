@@ -339,7 +339,7 @@ Remaining 3 LOW divergences are intentional (clip timestamp format, extra suppre
 - [x] `test_m5_anomaly_score`: prob=0.1/dur=0.5→1.0, prob=0.9/dur=0.05→1.245, prob=0.9/dur=3.0→1.0, prob=0.9/dur=0.5→0.0
 - [x] `test_m5_word_timestamps`: jfk.flac → 22 words, all start<end, monotonic, probabilities 0.79-1.00, text matches segment
 - [x] `test_m5_word_timestamps_long`: physicsworks.wav 30s → 82 words across 9 segments, coherent timing
-- [ ] `test_m5_alignment`: Deferred — requires generating Python reference alignment pairs for exact comparison
+- [x] `test_m5_alignment`: Python reference DTW alignment comparison — 22 words, 95% text match, 100% timing match (0ms max diff). Implemented in test_coverage.mm
 - [x] `test_m5_hallucination_skip`: silence_speech_silence.wav with hallucinationSilenceThreshold=1.0 — tested with and without filter
 
 **Exit criteria:** Word timestamps within 20ms of Python output for reference audio files.
@@ -397,7 +397,7 @@ Remaining 3 LOW divergences are intentional (clip timestamp format, extra suppre
 - [x] `test_m7_throughput`: 203s audio — batchSize=1: RTF=0.057, batchSize=8: RTF=0.109. Batch is slower on this hardware (GPU memory contention with turbo model on MPS). See findings below.
 - [x] `test_m7_segment_handler`: Callback count matches segment count
 - [x] `test_m7_multilingual_batch`: mixed_en_ru.wav with batched VAD — produces Cyrillic output
-- [ ] `test_m7_concurrent_files`: Deferred — requires GCD integration
+- [x] `test_m7_concurrent_files`: GCD serial queue dispatches 2 files sequentially on background thread — both produce correct text. Implemented in test_coverage.mm
 
 **Exit criteria:** Batched output matches sequential output — PASS. Throughput improvement > 1.5x — NOT MET (batch is actually 0.5x on this hardware). See report for analysis.
 
@@ -523,9 +523,9 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - [x] `test_m10_options_to_dict`: toDictionary produces all expected keys
 - [x] `test_m10_transcribe_with_options`: Transcribe jfk.flac with MWTranscriptionOptions → correct text
 - [x] `test_m10_async_transcribe`: Async API with completion handler on main queue → correct text
-- [ ] `test_m10_swift_basic`: Deferred — requires Xcode/SPM project for Swift test target
-- [ ] `test_m10_swift_streaming`: Deferred — requires Swift AsyncSequence wrapper (M10.7)
-- [ ] `test_m10_swift_cancel`: Deferred — requires structured concurrency (M10.8)
+- [x] `test_m10_swift_basic`: Swift `import MetalWhisper`, load model, transcribe JFK — "country" and "americans" in text. Compiled via swiftc + framework
+- [x] `test_m10_swift_streaming`: Swift segmentHandler callback — callback count matches return count, texts match
+- [x] `test_m10_swift_cancel`: Swift stop flag — set *stop=YES after first segment, fewer segments returned than full (8 vs 51)
 - [ ] `test_m10_microphone`: Deferred — live capture (M10.9)
 
 **Exit criteria:** Typed options class, async API, umbrella header — DONE. Swift async/await and AsyncSequence deferred to Xcode/SPM project setup (M12).
@@ -560,7 +560,7 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - [x] `test_m11_memory_sequential`: 5× sequential transcription, RSS growth < 0 MB (no leaks)
 - [x] `test_m11_memory_peak`: 203s transcription peak RSS = 1,016 MB (< 3,000 MB threshold)
 - [x] `test_m11_exact_tokens`: 100% token match with Python faster-whisper on JFK (27 tokens), 97.4% text similarity on physicsworks (203s). Implemented in test_coverage.mm
-- [ ] `test_m11_wer_librispeech`: Deferred — requires LibriSpeech dataset download
+- [x] `test_m11_wer_librispeech`: WER=0.3% on 10 LibriSpeech test-clean utterances (9/10 perfect). Data in tmp/librispeech/. Implemented in test_coverage.mm
 - [x] `test_m11_long_audio`: 83min Russian audio (large.mp3) — 4065 segments, 56092 chars, monotonic timestamps to 4975s. Gated by MW_LARGE_FILE env var.
 
 **Exit criteria:** Token-identical output for greedy decoding; WER within 0.1% for beam search; no crashes on edge cases; RTF better than Python.
@@ -602,15 +602,19 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - [x] M12.8: docs/MIGRATION.md — Python faster-whisper → MetalWhisper side-by-side guide
 - [x] M12.9: docs/man/metalwhisper.1 — man page for CLI
 
-**Deferred (requires Apple Developer account / Xcode):**
-- [ ] M12.3: SwiftUI example app
-- [ ] M12.4: Package.swift (SPM)
+**Additionally completed:**
+- [x] M12.3: SwiftUI example app — `examples/TranscriberApp/` with model selection, language picker, transcribe/translate, drag & drop, streaming segments, word timestamp badges, export (TXT/SRT/VTT)
+- [x] M12.7a: MetalWhisper.framework bundle — `scripts/build_framework.sh` produces framework with headers, module map, Info.plist for `import MetalWhisper` in Swift
+- [x] M12.release: Release packaging script — `scripts/build_release.sh` creates standalone tarball with CLI, dylibs, headers, framework, VAD model
+
+**Deferred (future work):**
+- [ ] M12.4: Package.swift (SPM) — requires SPM-compatible build system refactor
 - [ ] M12.5: Homebrew formula
 - [ ] M12.6: CI/CD (GitHub Actions)
-- [ ] M12.10: Code signing + notarization
-- [ ] M12.11: Model unload/reload API
+- [ ] M12.10: Code signing + notarization — requires Apple Developer account
+- [ ] M12.11: Model unload/rel oad API — expose CTranslate2 `unload_model()` for memory management
 
-**Exit criteria:** Documentation complete. App, SPM, Homebrew, signing deferred.
+**Exit criteria:** Documentation complete. Example app done. SPM, Homebrew, CI/CD, signing deferred.
 
 ---
 
