@@ -1,0 +1,4036 @@
+{
+  "file": "physicsworks.wav",
+  "language": "en",
+  "language_probability": 1,
+  "duration": 203.2834375,
+  "params": {
+    "beam_size": 6,
+    "temperature": 0.0,
+    "length_penalty": 0.6,
+    "condition_on_previous_text": true,
+    "word_timestamps": true
+  },
+  "segments": [
+    {
+      "id": 1,
+      "start": 0.0,
+      "end": 4.82,
+      "text": " Now I want to return to the conservation of mechanical energy.",
+      "tokens": [
+        50365,
+        823,
+        286,
+        528,
+        281,
+        2736,
+        281,
+        264,
+        16185,
+        295,
+        12070,
+        2281,
+        13,
+        50693
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Now",
+          "start": 0.0,
+          "end": 0.2,
+          "probability": 0.9504
+        },
+        {
+          "word": " I",
+          "start": 0.2,
+          "end": 0.34,
+          "probability": 0.9218
+        },
+        {
+          "word": " want",
+          "start": 0.34,
+          "end": 0.52,
+          "probability": 0.9995
+        },
+        {
+          "word": " to",
+          "start": 0.52,
+          "end": 0.7,
+          "probability": 0.9994
+        },
+        {
+          "word": " return",
+          "start": 0.7,
+          "end": 1.94,
+          "probability": 0.9714
+        },
+        {
+          "word": " to",
+          "start": 1.94,
+          "end": 2.42,
+          "probability": 0.9996
+        },
+        {
+          "word": " the",
+          "start": 2.42,
+          "end": 2.58,
+          "probability": 0.9982
+        },
+        {
+          "word": " conservation",
+          "start": 2.58,
+          "end": 2.98,
+          "probability": 0.9994
+        },
+        {
+          "word": " of",
+          "start": 2.98,
+          "end": 3.54,
+          "probability": 0.9996
+        },
+        {
+          "word": " mechanical",
+          "start": 3.54,
+          "end": 4.02,
+          "probability": 0.9991
+        },
+        {
+          "word": " energy.",
+          "start": 4.02,
+          "end": 4.82,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "start": 6.26,
+      "end": 8.98,
+      "text": " I have here a pendulum.",
+      "tokens": [
+        50693,
+        286,
+        362,
+        510,
+        257,
+        44103,
+        13,
+        50873
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 6.26,
+          "end": 6.74,
+          "probability": 0.9982
+        },
+        {
+          "word": " have",
+          "start": 6.74,
+          "end": 6.9,
+          "probability": 0.9998
+        },
+        {
+          "word": " here",
+          "start": 6.9,
+          "end": 7.2,
+          "probability": 0.9913
+        },
+        {
+          "word": " a",
+          "start": 7.2,
+          "end": 8.62,
+          "probability": 0.9547
+        },
+        {
+          "word": " pendulum.",
+          "start": 8.62,
+          "end": 8.98,
+          "probability": 0.9995
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "start": 9.8,
+      "end": 12.02,
+      "text": " I have an object that weighs 15 kilograms,",
+      "tokens": [
+        50873,
+        286,
+        362,
+        364,
+        2657,
+        300,
+        24911,
+        2119,
+        30690,
+        11,
+        50975
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 9.8,
+          "end": 10.28,
+          "probability": 0.9983
+        },
+        {
+          "word": " have",
+          "start": 10.28,
+          "end": 10.4,
+          "probability": 0.9996
+        },
+        {
+          "word": " an",
+          "start": 10.4,
+          "end": 10.48,
+          "probability": 0.9983
+        },
+        {
+          "word": " object",
+          "start": 10.48,
+          "end": 10.78,
+          "probability": 0.9997
+        },
+        {
+          "word": " that",
+          "start": 10.78,
+          "end": 10.98,
+          "probability": 0.9982
+        },
+        {
+          "word": " weighs",
+          "start": 10.98,
+          "end": 11.22,
+          "probability": 0.9945
+        },
+        {
+          "word": " 15",
+          "start": 11.22,
+          "end": 11.6,
+          "probability": 0.9658
+        },
+        {
+          "word": " kilograms,",
+          "start": 11.6,
+          "end": 12.02,
+          "probability": 0.9837
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "start": 12.28,
+      "end": 15.04,
+      "text": " and I can lift it up one meter, which I have done now.",
+      "tokens": [
+        50975,
+        293,
+        286,
+        393,
+        5533,
+        309,
+        493,
+        472,
+        9255,
+        11,
+        597,
+        286,
+        362,
+        1096,
+        586,
+        13,
+        51147
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 12.28,
+          "end": 12.34,
+          "probability": 0.9988
+        },
+        {
+          "word": " I",
+          "start": 12.34,
+          "end": 12.44,
+          "probability": 0.9994
+        },
+        {
+          "word": " can",
+          "start": 12.44,
+          "end": 12.58,
+          "probability": 0.9989
+        },
+        {
+          "word": " lift",
+          "start": 12.58,
+          "end": 12.8,
+          "probability": 0.9995
+        },
+        {
+          "word": " it",
+          "start": 12.8,
+          "end": 12.92,
+          "probability": 0.9982
+        },
+        {
+          "word": " up",
+          "start": 12.92,
+          "end": 13.1,
+          "probability": 0.9995
+        },
+        {
+          "word": " one",
+          "start": 13.1,
+          "end": 13.8,
+          "probability": 0.9154
+        },
+        {
+          "word": " meter,",
+          "start": 13.8,
+          "end": 14.06,
+          "probability": 0.9706
+        },
+        {
+          "word": " which",
+          "start": 14.18,
+          "end": 14.38,
+          "probability": 0.9987
+        },
+        {
+          "word": " I",
+          "start": 14.38,
+          "end": 14.5,
+          "probability": 0.9991
+        },
+        {
+          "word": " have",
+          "start": 14.5,
+          "end": 14.62,
+          "probability": 0.9961
+        },
+        {
+          "word": " done",
+          "start": 14.62,
+          "end": 14.78,
+          "probability": 0.9996
+        },
+        {
+          "word": " now.",
+          "start": 14.78,
+          "end": 15.04,
+          "probability": 0.9971
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "start": 15.42,
+      "end": 16.74,
+      "text": " That means I've done work.",
+      "tokens": [
+        51147,
+        663,
+        1355,
+        286,
+        600,
+        1096,
+        589,
+        13,
+        51237
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " That",
+          "start": 15.42,
+          "end": 15.78,
+          "probability": 0.9843
+        },
+        {
+          "word": " means",
+          "start": 15.78,
+          "end": 15.92,
+          "probability": 0.9991
+        },
+        {
+          "word": " I've",
+          "start": 15.92,
+          "end": 16.16,
+          "probability": 0.9267
+        },
+        {
+          "word": " done",
+          "start": 16.16,
+          "end": 16.32,
+          "probability": 0.9996
+        },
+        {
+          "word": " work.",
+          "start": 16.32,
+          "end": 16.74,
+          "probability": 0.9914
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "start": 17.52,
+      "end": 19.7,
+      "text": " MGH is the work I have done, believe me.",
+      "tokens": [
+        51237,
+        376,
+        4269,
+        307,
+        264,
+        589,
+        286,
+        362,
+        1096,
+        11,
+        1697,
+        385,
+        13,
+        51361
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " MGH",
+          "start": 17.52,
+          "end": 18.0,
+          "probability": 0.7452
+        },
+        {
+          "word": " is",
+          "start": 18.0,
+          "end": 18.32,
+          "probability": 0.996
+        },
+        {
+          "word": " the",
+          "start": 18.32,
+          "end": 18.42,
+          "probability": 0.9989
+        },
+        {
+          "word": " work",
+          "start": 18.42,
+          "end": 18.6,
+          "probability": 0.9996
+        },
+        {
+          "word": " I",
+          "start": 18.6,
+          "end": 18.78,
+          "probability": 0.9966
+        },
+        {
+          "word": " have",
+          "start": 18.78,
+          "end": 18.94,
+          "probability": 0.9982
+        },
+        {
+          "word": " done,",
+          "start": 18.94,
+          "end": 19.14,
+          "probability": 0.9997
+        },
+        {
+          "word": " believe",
+          "start": 19.28,
+          "end": 19.48,
+          "probability": 0.999
+        },
+        {
+          "word": " me.",
+          "start": 19.48,
+          "end": 19.7,
+          "probability": 1.0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "start": 19.9,
+      "end": 22.3,
+      "text": " I've increased the potential energy of this object.",
+      "tokens": [
+        51361,
+        286,
+        600,
+        6505,
+        264,
+        3995,
+        2281,
+        295,
+        341,
+        2657,
+        13,
+        51513
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I've",
+          "start": 19.9,
+          "end": 20.2,
+          "probability": 0.8907
+        },
+        {
+          "word": " increased",
+          "start": 20.2,
+          "end": 20.6,
+          "probability": 0.9994
+        },
+        {
+          "word": " the",
+          "start": 20.6,
+          "end": 20.76,
+          "probability": 0.9997
+        },
+        {
+          "word": " potential",
+          "start": 20.76,
+          "end": 21.12,
+          "probability": 0.9996
+        },
+        {
+          "word": " energy",
+          "start": 21.12,
+          "end": 21.5,
+          "probability": 0.9994
+        },
+        {
+          "word": " of",
+          "start": 21.5,
+          "end": 21.68,
+          "probability": 0.9997
+        },
+        {
+          "word": " this",
+          "start": 21.68,
+          "end": 21.86,
+          "probability": 0.9998
+        },
+        {
+          "word": " object.",
+          "start": 21.86,
+          "end": 22.3,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "start": 22.9,
+      "end": 25.46,
+      "text": " Fifteen times ten is about 150 joules.",
+      "tokens": [
+        51513,
+        21501,
+        9791,
+        1413,
+        2064,
+        307,
+        466,
+        8451,
+        11110,
+        904,
+        13,
+        51689
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.138733,
+      "compression_ratio": 1.545,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Fifteen",
+          "start": 22.9,
+          "end": 23.38,
+          "probability": 0.7161
+        },
+        {
+          "word": " times",
+          "start": 23.38,
+          "end": 23.62,
+          "probability": 0.9992
+        },
+        {
+          "word": " ten",
+          "start": 23.62,
+          "end": 23.9,
+          "probability": 0.7745
+        },
+        {
+          "word": " is",
+          "start": 23.9,
+          "end": 24.28,
+          "probability": 0.6883
+        },
+        {
+          "word": " about",
+          "start": 24.28,
+          "end": 24.44,
+          "probability": 0.9954
+        },
+        {
+          "word": " 150",
+          "start": 24.44,
+          "end": 24.98,
+          "probability": 0.9924
+        },
+        {
+          "word": " joules.",
+          "start": 24.98,
+          "end": 25.46,
+          "probability": 0.9871
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "start": 26.16,
+      "end": 30.76,
+      "text": " If I let it fall, then that will be converted to kinetic energy.",
+      "tokens": [
+        50365,
+        759,
+        286,
+        718,
+        309,
+        2100,
+        11,
+        550,
+        300,
+        486,
+        312,
+        16424,
+        281,
+        27135,
+        2281,
+        13,
+        50615
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " If",
+          "start": 26.16,
+          "end": 26.66,
+          "probability": 0.8102
+        },
+        {
+          "word": " I",
+          "start": 26.66,
+          "end": 26.76,
+          "probability": 0.9934
+        },
+        {
+          "word": " let",
+          "start": 26.76,
+          "end": 26.94,
+          "probability": 0.9776
+        },
+        {
+          "word": " it",
+          "start": 26.94,
+          "end": 27.04,
+          "probability": 0.9977
+        },
+        {
+          "word": " fall,",
+          "start": 27.04,
+          "end": 27.44,
+          "probability": 0.9973
+        },
+        {
+          "word": " then",
+          "start": 27.74,
+          "end": 28.52,
+          "probability": 0.9922
+        },
+        {
+          "word": " that",
+          "start": 28.52,
+          "end": 29.14,
+          "probability": 0.9895
+        },
+        {
+          "word": " will",
+          "start": 29.14,
+          "end": 29.3,
+          "probability": 0.9974
+        },
+        {
+          "word": " be",
+          "start": 29.3,
+          "end": 29.44,
+          "probability": 0.9991
+        },
+        {
+          "word": " converted",
+          "start": 29.44,
+          "end": 29.84,
+          "probability": 0.9994
+        },
+        {
+          "word": " to",
+          "start": 29.84,
+          "end": 30.02,
+          "probability": 0.9963
+        },
+        {
+          "word": " kinetic",
+          "start": 30.02,
+          "end": 30.34,
+          "probability": 0.9982
+        },
+        {
+          "word": " energy.",
+          "start": 30.34,
+          "end": 30.76,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "start": 31.66,
+      "end": 36.48,
+      "text": " If I would let it swing from one meter height,",
+      "tokens": [
+        50615,
+        759,
+        286,
+        576,
+        718,
+        309,
+        11173,
+        490,
+        472,
+        9255,
+        6681,
+        11,
+        50865
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " If",
+          "start": 31.66,
+          "end": 32.16,
+          "probability": 0.9977
+        },
+        {
+          "word": " I",
+          "start": 32.16,
+          "end": 32.26,
+          "probability": 0.9981
+        },
+        {
+          "word": " would",
+          "start": 32.26,
+          "end": 32.38,
+          "probability": 0.9967
+        },
+        {
+          "word": " let",
+          "start": 32.38,
+          "end": 32.52,
+          "probability": 0.9991
+        },
+        {
+          "word": " it",
+          "start": 32.52,
+          "end": 32.66,
+          "probability": 0.9992
+        },
+        {
+          "word": " swing",
+          "start": 32.66,
+          "end": 33.08,
+          "probability": 0.9987
+        },
+        {
+          "word": " from",
+          "start": 33.08,
+          "end": 35.68,
+          "probability": 0.9563
+        },
+        {
+          "word": " one",
+          "start": 35.68,
+          "end": 35.9,
+          "probability": 0.869
+        },
+        {
+          "word": " meter",
+          "start": 35.9,
+          "end": 36.12,
+          "probability": 0.8842
+        },
+        {
+          "word": " height,",
+          "start": 36.12,
+          "end": 36.48,
+          "probability": 0.9869
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "start": 36.9,
+      "end": 39.68,
+      "text": " and you would be there and it would hit you, you'd be dead.",
+      "tokens": [
+        50865,
+        293,
+        291,
+        576,
+        312,
+        456,
+        293,
+        309,
+        576,
+        2045,
+        291,
+        11,
+        291,
+        1116,
+        312,
+        3116,
+        13,
+        51065
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 36.9,
+          "end": 37.26,
+          "probability": 0.7584
+        },
+        {
+          "word": " you",
+          "start": 37.26,
+          "end": 37.38,
+          "probability": 0.9939
+        },
+        {
+          "word": " would",
+          "start": 37.38,
+          "end": 37.52,
+          "probability": 0.9972
+        },
+        {
+          "word": " be",
+          "start": 37.52,
+          "end": 37.64,
+          "probability": 0.9992
+        },
+        {
+          "word": " there",
+          "start": 37.64,
+          "end": 37.86,
+          "probability": 0.9996
+        },
+        {
+          "word": " and",
+          "start": 37.86,
+          "end": 38.0,
+          "probability": 0.7719
+        },
+        {
+          "word": " it",
+          "start": 38.0,
+          "end": 38.1,
+          "probability": 0.9875
+        },
+        {
+          "word": " would",
+          "start": 38.1,
+          "end": 38.22,
+          "probability": 0.9991
+        },
+        {
+          "word": " hit",
+          "start": 38.22,
+          "end": 38.4,
+          "probability": 0.9996
+        },
+        {
+          "word": " you,",
+          "start": 38.4,
+          "end": 38.6,
+          "probability": 0.9992
+        },
+        {
+          "word": " you'd",
+          "start": 38.84,
+          "end": 39.26,
+          "probability": 0.9676
+        },
+        {
+          "word": " be",
+          "start": 39.26,
+          "end": 39.34,
+          "probability": 0.9995
+        },
+        {
+          "word": " dead.",
+          "start": 39.34,
+          "end": 39.68,
+          "probability": 0.9993
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "start": 40.78,
+      "end": 42.62,
+      "text": " 150 joules is enough to kill you.",
+      "tokens": [
+        51065,
+        8451,
+        11110,
+        904,
+        307,
+        1547,
+        281,
+        1961,
+        291,
+        13,
+        51215
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " 150",
+          "start": 40.78,
+          "end": 41.28,
+          "probability": 0.9389
+        },
+        {
+          "word": " joules",
+          "start": 41.28,
+          "end": 41.68,
+          "probability": 0.9793
+        },
+        {
+          "word": " is",
+          "start": 41.68,
+          "end": 41.82,
+          "probability": 0.9992
+        },
+        {
+          "word": " enough",
+          "start": 41.82,
+          "end": 42.04,
+          "probability": 0.9997
+        },
+        {
+          "word": " to",
+          "start": 42.04,
+          "end": 42.18,
+          "probability": 0.9998
+        },
+        {
+          "word": " kill",
+          "start": 42.18,
+          "end": 42.4,
+          "probability": 0.9998
+        },
+        {
+          "word": " you.",
+          "start": 42.4,
+          "end": 42.62,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "start": 43.98,
+      "end": 47.08,
+      "text": " They use these devices. They're called a wrecker ball.",
+      "tokens": [
+        51215,
+        814,
+        764,
+        613,
+        5759,
+        13,
+        814,
+        434,
+        1219,
+        257,
+        46674,
+        9178,
+        2594,
+        13,
+        51415
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " They",
+          "start": 43.98,
+          "end": 44.48,
+          "probability": 0.9978
+        },
+        {
+          "word": " use",
+          "start": 44.48,
+          "end": 44.74,
+          "probability": 0.8378
+        },
+        {
+          "word": " these",
+          "start": 44.74,
+          "end": 44.92,
+          "probability": 0.9988
+        },
+        {
+          "word": " devices.",
+          "start": 44.92,
+          "end": 45.48,
+          "probability": 0.9998
+        },
+        {
+          "word": " They're",
+          "start": 45.8,
+          "end": 46.22,
+          "probability": 0.7046
+        },
+        {
+          "word": " called",
+          "start": 46.22,
+          "end": 46.34,
+          "probability": 0.999
+        },
+        {
+          "word": " a",
+          "start": 46.34,
+          "end": 46.52,
+          "probability": 0.9918
+        },
+        {
+          "word": " wrecker",
+          "start": 46.52,
+          "end": 46.78,
+          "probability": 0.7475
+        },
+        {
+          "word": " ball.",
+          "start": 46.78,
+          "end": 47.08,
+          "probability": 0.676
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "start": 47.56,
+      "end": 49.34,
+      "text": " They use them to demolish buildings.",
+      "tokens": [
+        51415,
+        814,
+        764,
+        552,
+        281,
+        26933,
+        742,
+        7446,
+        13,
+        51565
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " They",
+          "start": 47.56,
+          "end": 48.06,
+          "probability": 0.9994
+        },
+        {
+          "word": " use",
+          "start": 48.06,
+          "end": 48.28,
+          "probability": 0.9965
+        },
+        {
+          "word": " them",
+          "start": 48.28,
+          "end": 48.42,
+          "probability": 0.9991
+        },
+        {
+          "word": " to",
+          "start": 48.42,
+          "end": 48.56,
+          "probability": 0.9994
+        },
+        {
+          "word": " demolish",
+          "start": 48.56,
+          "end": 48.96,
+          "probability": 0.9997
+        },
+        {
+          "word": " buildings.",
+          "start": 48.96,
+          "end": 49.34,
+          "probability": 0.9993
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "start": 50.02,
+      "end": 53.84,
+      "text": " You lift up a very heavy object, even heavier than this,",
+      "tokens": [
+        51565,
+        509,
+        5533,
+        493,
+        257,
+        588,
+        4676,
+        2657,
+        11,
+        754,
+        18279,
+        813,
+        341,
+        11,
+        51765
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.158587,
+      "compression_ratio": 1.5733,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " You",
+          "start": 50.02,
+          "end": 50.52,
+          "probability": 0.9984
+        },
+        {
+          "word": " lift",
+          "start": 50.52,
+          "end": 51.02,
+          "probability": 0.9997
+        },
+        {
+          "word": " up",
+          "start": 51.02,
+          "end": 51.24,
+          "probability": 0.9997
+        },
+        {
+          "word": " a",
+          "start": 51.24,
+          "end": 51.66,
+          "probability": 0.9986
+        },
+        {
+          "word": " very",
+          "start": 51.66,
+          "end": 51.9,
+          "probability": 0.9998
+        },
+        {
+          "word": " heavy",
+          "start": 51.9,
+          "end": 52.08,
+          "probability": 0.9996
+        },
+        {
+          "word": " object,",
+          "start": 52.08,
+          "end": 52.56,
+          "probability": 0.9998
+        },
+        {
+          "word": " even",
+          "start": 52.76,
+          "end": 53.08,
+          "probability": 0.9993
+        },
+        {
+          "word": " heavier",
+          "start": 53.08,
+          "end": 53.3,
+          "probability": 0.9995
+        },
+        {
+          "word": " than",
+          "start": 53.3,
+          "end": 53.56,
+          "probability": 0.9997
+        },
+        {
+          "word": " this,",
+          "start": 53.56,
+          "end": 53.84,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "start": 53.84,
+      "end": 57.08,
+      "text": " and then you let it go, you swing it,",
+      "tokens": [
+        50365,
+        293,
+        550,
+        291,
+        718,
+        309,
+        352,
+        11,
+        291,
+        11173,
+        309,
+        11,
+        50515
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 53.84,
+          "end": 54.72,
+          "probability": 0.7243
+        },
+        {
+          "word": " then",
+          "start": 54.72,
+          "end": 55.22,
+          "probability": 0.9871
+        },
+        {
+          "word": " you",
+          "start": 55.22,
+          "end": 55.86,
+          "probability": 0.9595
+        },
+        {
+          "word": " let",
+          "start": 55.86,
+          "end": 56.02,
+          "probability": 0.9984
+        },
+        {
+          "word": " it",
+          "start": 56.02,
+          "end": 56.12,
+          "probability": 0.9962
+        },
+        {
+          "word": " go,",
+          "start": 56.12,
+          "end": 56.32,
+          "probability": 0.9995
+        },
+        {
+          "word": " you",
+          "start": 56.48,
+          "end": 56.54,
+          "probability": 0.9906
+        },
+        {
+          "word": " swing",
+          "start": 56.54,
+          "end": 56.86,
+          "probability": 0.9851
+        },
+        {
+          "word": " it,",
+          "start": 56.86,
+          "end": 57.08,
+          "probability": 0.999
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "start": 57.24,
+      "end": 60.0,
+      "text": " thereby converting gravitational potential energy",
+      "tokens": [
+        50515,
+        28281,
+        29942,
+        28538,
+        3995,
+        2281,
+        50665
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " thereby",
+          "start": 57.24,
+          "end": 57.52,
+          "probability": 0.9891
+        },
+        {
+          "word": " converting",
+          "start": 57.52,
+          "end": 58.14,
+          "probability": 0.9887
+        },
+        {
+          "word": " gravitational",
+          "start": 58.14,
+          "end": 58.52,
+          "probability": 0.9894
+        },
+        {
+          "word": " potential",
+          "start": 58.52,
+          "end": 59.4,
+          "probability": 0.9908
+        },
+        {
+          "word": " energy",
+          "start": 59.4,
+          "end": 60.0,
+          "probability": 0.9988
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "start": 60.0,
+      "end": 61.98,
+      "text": " into kinetic energy,",
+      "tokens": [
+        50665,
+        666,
+        27135,
+        2281,
+        11,
+        50765
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " into",
+          "start": 60.0,
+          "end": 60.62,
+          "probability": 0.996
+        },
+        {
+          "word": " kinetic",
+          "start": 60.62,
+          "end": 61.52,
+          "probability": 0.9991
+        },
+        {
+          "word": " energy,",
+          "start": 61.52,
+          "end": 61.98,
+          "probability": 0.9998
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "start": 62.1,
+      "end": 65.06,
+      "text": " and that way you can demolish a building.",
+      "tokens": [
+        50765,
+        293,
+        300,
+        636,
+        291,
+        393,
+        26933,
+        742,
+        257,
+        2390,
+        13,
+        50915
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 62.1,
+          "end": 62.48,
+          "probability": 0.9979
+        },
+        {
+          "word": " that",
+          "start": 62.48,
+          "end": 62.66,
+          "probability": 0.9964
+        },
+        {
+          "word": " way",
+          "start": 62.66,
+          "end": 62.9,
+          "probability": 0.9995
+        },
+        {
+          "word": " you",
+          "start": 62.9,
+          "end": 63.4,
+          "probability": 0.9219
+        },
+        {
+          "word": " can",
+          "start": 63.4,
+          "end": 63.68,
+          "probability": 0.9998
+        },
+        {
+          "word": " demolish",
+          "start": 63.68,
+          "end": 64.68,
+          "probability": 0.9993
+        },
+        {
+          "word": " a",
+          "start": 64.68,
+          "end": 64.82,
+          "probability": 0.996
+        },
+        {
+          "word": " building.",
+          "start": 64.82,
+          "end": 65.06,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "start": 65.42,
+      "end": 66.84,
+      "text": " You just let it hit...",
+      "tokens": [
+        50915,
+        509,
+        445,
+        718,
+        309,
+        2045,
+        485,
+        51015
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " You",
+          "start": 65.42,
+          "end": 65.88,
+          "probability": 0.9954
+        },
+        {
+          "word": " just",
+          "start": 65.88,
+          "end": 66.06,
+          "probability": 0.9986
+        },
+        {
+          "word": " let",
+          "start": 66.06,
+          "end": 66.22,
+          "probability": 0.9998
+        },
+        {
+          "word": " it",
+          "start": 66.22,
+          "end": 66.34,
+          "probability": 0.9992
+        },
+        {
+          "word": " hit...",
+          "start": 66.34,
+          "end": 66.84,
+          "probability": 0.6341
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "start": 69.96,
+      "end": 71.26,
+      "text": " and it breaks a building,",
+      "tokens": [
+        51165,
+        293,
+        309,
+        9857,
+        257,
+        2390,
+        11,
+        51215
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 69.96,
+          "end": 70.52,
+          "probability": 0.6553
+        },
+        {
+          "word": " it",
+          "start": 70.52,
+          "end": 70.64,
+          "probability": 0.9977
+        },
+        {
+          "word": " breaks",
+          "start": 70.64,
+          "end": 70.88,
+          "probability": 0.9986
+        },
+        {
+          "word": " a",
+          "start": 70.88,
+          "end": 70.98,
+          "probability": 0.923
+        },
+        {
+          "word": " building,",
+          "start": 70.98,
+          "end": 71.26,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "start": 71.4,
+      "end": 73.66,
+      "text": " and that's the whole idea of wrecking.",
+      "tokens": [
+        51215,
+        293,
+        300,
+        311,
+        264,
+        1379,
+        1558,
+        295,
+        21478,
+        278,
+        13,
+        51415
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.116675,
+      "compression_ratio": 1.5455,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 71.4,
+          "end": 71.68,
+          "probability": 0.9966
+        },
+        {
+          "word": " that's",
+          "start": 71.68,
+          "end": 71.88,
+          "probability": 0.9986
+        },
+        {
+          "word": " the",
+          "start": 71.88,
+          "end": 71.98,
+          "probability": 0.9991
+        },
+        {
+          "word": " whole",
+          "start": 71.98,
+          "end": 72.1,
+          "probability": 0.9989
+        },
+        {
+          "word": " idea",
+          "start": 72.1,
+          "end": 72.42,
+          "probability": 0.9998
+        },
+        {
+          "word": " of",
+          "start": 72.42,
+          "end": 73.28,
+          "probability": 0.9973
+        },
+        {
+          "word": " wrecking.",
+          "start": 73.28,
+          "end": 73.66,
+          "probability": 0.9485
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "start": 74.96,
+      "end": 76.66,
+      "text": " So you are using, then,",
+      "tokens": [
+        50365,
+        407,
+        291,
+        366,
+        1228,
+        11,
+        550,
+        11,
+        50515
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.136797,
+      "compression_ratio": 1.4552,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " So",
+          "start": 74.96,
+          "end": 75.76,
+          "probability": 0.7943
+        },
+        {
+          "word": " you",
+          "start": 75.76,
+          "end": 75.94,
+          "probability": 0.9253
+        },
+        {
+          "word": " are",
+          "start": 75.94,
+          "end": 76.06,
+          "probability": 0.607
+        },
+        {
+          "word": " using,",
+          "start": 76.06,
+          "end": 76.4,
+          "probability": 0.9991
+        },
+        {
+          "word": " then,",
+          "start": 76.54,
+          "end": 76.66,
+          "probability": 0.9987
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "start": 77.28,
+      "end": 80.96,
+      "text": " the conversion of gravitational potential energy",
+      "tokens": [
+        50515,
+        264,
+        14298,
+        295,
+        28538,
+        3995,
+        2281,
+        50715
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.136797,
+      "compression_ratio": 1.4552,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " the",
+          "start": 77.28,
+          "end": 77.36,
+          "probability": 0.996
+        },
+        {
+          "word": " conversion",
+          "start": 77.36,
+          "end": 77.82,
+          "probability": 0.9983
+        },
+        {
+          "word": " of",
+          "start": 77.82,
+          "end": 78.7,
+          "probability": 0.9962
+        },
+        {
+          "word": " gravitational",
+          "start": 78.7,
+          "end": 79.9,
+          "probability": 0.9882
+        },
+        {
+          "word": " potential",
+          "start": 79.9,
+          "end": 80.38,
+          "probability": 0.9931
+        },
+        {
+          "word": " energy",
+          "start": 80.38,
+          "end": 80.96,
+          "probability": 0.999
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "start": 80.96,
+      "end": 82.92,
+      "text": " to kinetic energy.",
+      "tokens": [
+        50715,
+        281,
+        27135,
+        2281,
+        13,
+        50815
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.136797,
+      "compression_ratio": 1.4552,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " to",
+          "start": 80.96,
+          "end": 81.54,
+          "probability": 0.9954
+        },
+        {
+          "word": " kinetic",
+          "start": 81.54,
+          "end": 82.5,
+          "probability": 0.9987
+        },
+        {
+          "word": " energy.",
+          "start": 82.5,
+          "end": 82.92,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "start": 83.52,
+      "end": 86.58,
+      "text": " Now, I am such a strong believer",
+      "tokens": [
+        50815,
+        823,
+        11,
+        286,
+        669,
+        1270,
+        257,
+        2068,
+        23892,
+        51015
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.136797,
+      "compression_ratio": 1.4552,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Now,",
+          "start": 83.52,
+          "end": 84.22,
+          "probability": 0.9943
+        },
+        {
+          "word": " I",
+          "start": 84.6,
+          "end": 85.24,
+          "probability": 0.9984
+        },
+        {
+          "word": " am",
+          "start": 85.24,
+          "end": 85.42,
+          "probability": 0.9906
+        },
+        {
+          "word": " such",
+          "start": 85.42,
+          "end": 85.66,
+          "probability": 0.9982
+        },
+        {
+          "word": " a",
+          "start": 85.66,
+          "end": 85.84,
+          "probability": 0.9994
+        },
+        {
+          "word": " strong",
+          "start": 85.84,
+          "end": 86.18,
+          "probability": 0.9996
+        },
+        {
+          "word": " believer",
+          "start": 86.18,
+          "end": 86.58,
+          "probability": 0.9994
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "start": 86.58,
+      "end": 91.26,
+      "text": " of the conservation of mechanical energy",
+      "tokens": [
+        51015,
+        295,
+        264,
+        16185,
+        295,
+        12070,
+        2281,
+        51215
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.136797,
+      "compression_ratio": 1.4552,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " of",
+          "start": 86.58,
+          "end": 87.72,
+          "probability": 0.9933
+        },
+        {
+          "word": " the",
+          "start": 87.72,
+          "end": 88.2,
+          "probability": 0.9986
+        },
+        {
+          "word": " conservation",
+          "start": 88.2,
+          "end": 89.32,
+          "probability": 0.9982
+        },
+        {
+          "word": " of",
+          "start": 89.32,
+          "end": 90.38,
+          "probability": 0.9995
+        },
+        {
+          "word": " mechanical",
+          "start": 90.38,
+          "end": 90.74,
+          "probability": 0.9989
+        },
+        {
+          "word": " energy",
+          "start": 90.74,
+          "end": 91.26,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "start": 91.26,
+      "end": 95.8,
+      "text": " that I am willing to put my life on the line.",
+      "tokens": [
+        51215,
+        300,
+        286,
+        669,
+        4950,
+        281,
+        829,
+        452,
+        993,
+        322,
+        264,
+        1622,
+        13,
+        51465
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.136797,
+      "compression_ratio": 1.4552,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " that",
+          "start": 91.26,
+          "end": 92.28,
+          "probability": 0.9133
+        },
+        {
+          "word": " I",
+          "start": 92.28,
+          "end": 92.48,
+          "probability": 0.9987
+        },
+        {
+          "word": " am",
+          "start": 92.48,
+          "end": 92.62,
+          "probability": 0.997
+        },
+        {
+          "word": " willing",
+          "start": 92.62,
+          "end": 92.86,
+          "probability": 0.9988
+        },
+        {
+          "word": " to",
+          "start": 92.86,
+          "end": 93.86,
+          "probability": 0.999
+        },
+        {
+          "word": " put",
+          "start": 93.86,
+          "end": 94.06,
+          "probability": 0.9994
+        },
+        {
+          "word": " my",
+          "start": 94.06,
+          "end": 94.24,
+          "probability": 0.9996
+        },
+        {
+          "word": " life",
+          "start": 94.24,
+          "end": 94.62,
+          "probability": 0.9996
+        },
+        {
+          "word": " on",
+          "start": 94.62,
+          "end": 95.46,
+          "probability": 0.9989
+        },
+        {
+          "word": " the",
+          "start": 95.46,
+          "end": 95.56,
+          "probability": 0.9994
+        },
+        {
+          "word": " line.",
+          "start": 95.56,
+          "end": 95.8,
+          "probability": 0.9996
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "start": 98.0,
+      "end": 103.08,
+      "text": " If I release that bob from a certain height,",
+      "tokens": [
+        50365,
+        759,
+        286,
+        4374,
+        300,
+        27292,
+        490,
+        257,
+        1629,
+        6681,
+        11,
+        50765
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.102912,
+      "compression_ratio": 1.6257,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " If",
+          "start": 98.0,
+          "end": 98.64,
+          "probability": 0.8448
+        },
+        {
+          "word": " I",
+          "start": 98.64,
+          "end": 98.84,
+          "probability": 0.9979
+        },
+        {
+          "word": " release",
+          "start": 98.84,
+          "end": 99.4,
+          "probability": 0.9977
+        },
+        {
+          "word": " that",
+          "start": 99.4,
+          "end": 100.36,
+          "probability": 0.9988
+        },
+        {
+          "word": " bob",
+          "start": 100.36,
+          "end": 101.06,
+          "probability": 0.7636
+        },
+        {
+          "word": " from",
+          "start": 101.06,
+          "end": 102.2,
+          "probability": 0.9975
+        },
+        {
+          "word": " a",
+          "start": 102.2,
+          "end": 102.4,
+          "probability": 0.9994
+        },
+        {
+          "word": " certain",
+          "start": 102.4,
+          "end": 102.72,
+          "probability": 0.9997
+        },
+        {
+          "word": " height,",
+          "start": 102.72,
+          "end": 103.08,
+          "probability": 0.9991
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "start": 104.56,
+      "end": 108.8,
+      "text": " then that bob can never come back to a point",
+      "tokens": [
+        50765,
+        550,
+        300,
+        27292,
+        393,
+        1128,
+        808,
+        646,
+        281,
+        257,
+        935,
+        51015
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.102912,
+      "compression_ratio": 1.6257,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " then",
+          "start": 104.56,
+          "end": 105.2,
+          "probability": 0.9964
+        },
+        {
+          "word": " that",
+          "start": 105.2,
+          "end": 105.84,
+          "probability": 0.9933
+        },
+        {
+          "word": " bob",
+          "start": 105.84,
+          "end": 106.16,
+          "probability": 0.9982
+        },
+        {
+          "word": " can",
+          "start": 106.16,
+          "end": 106.46,
+          "probability": 0.9979
+        },
+        {
+          "word": " never",
+          "start": 106.46,
+          "end": 106.74,
+          "probability": 0.9997
+        },
+        {
+          "word": " come",
+          "start": 106.74,
+          "end": 107.34,
+          "probability": 0.9995
+        },
+        {
+          "word": " back",
+          "start": 107.34,
+          "end": 107.62,
+          "probability": 0.999
+        },
+        {
+          "word": " to",
+          "start": 107.62,
+          "end": 108.32,
+          "probability": 0.9986
+        },
+        {
+          "word": " a",
+          "start": 108.32,
+          "end": 108.48,
+          "probability": 0.9985
+        },
+        {
+          "word": " point",
+          "start": 108.48,
+          "end": 108.8,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "start": 108.8,
+      "end": 111.02,
+      "text": " where the height is any larger.",
+      "tokens": [
+        51015,
+        689,
+        264,
+        6681,
+        307,
+        604,
+        4833,
+        13,
+        51115
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.102912,
+      "compression_ratio": 1.6257,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " where",
+          "start": 108.8,
+          "end": 109.6,
+          "probability": 0.9979
+        },
+        {
+          "word": " the",
+          "start": 109.6,
+          "end": 109.78,
+          "probability": 0.9983
+        },
+        {
+          "word": " height",
+          "start": 109.78,
+          "end": 110.04,
+          "probability": 0.9985
+        },
+        {
+          "word": " is",
+          "start": 110.04,
+          "end": 110.48,
+          "probability": 0.9993
+        },
+        {
+          "word": " any",
+          "start": 110.48,
+          "end": 110.66,
+          "probability": 0.9996
+        },
+        {
+          "word": " larger.",
+          "start": 110.66,
+          "end": 111.02,
+          "probability": 0.9988
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "start": 111.42,
+      "end": 115.0,
+      "text": " If I release it from this height and it swings,",
+      "tokens": [
+        51115,
+        759,
+        286,
+        4374,
+        309,
+        490,
+        341,
+        6681,
+        293,
+        309,
+        32386,
+        11,
+        51315
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.102912,
+      "compression_ratio": 1.6257,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " If",
+          "start": 111.42,
+          "end": 112.06,
+          "probability": 0.9971
+        },
+        {
+          "word": " I",
+          "start": 112.06,
+          "end": 112.18,
+          "probability": 0.9988
+        },
+        {
+          "word": " release",
+          "start": 112.18,
+          "end": 112.54,
+          "probability": 0.9979
+        },
+        {
+          "word": " it",
+          "start": 112.54,
+          "end": 112.7,
+          "probability": 0.9989
+        },
+        {
+          "word": " from",
+          "start": 112.7,
+          "end": 112.86,
+          "probability": 0.9995
+        },
+        {
+          "word": " this",
+          "start": 112.86,
+          "end": 113.06,
+          "probability": 0.9997
+        },
+        {
+          "word": " height",
+          "start": 113.06,
+          "end": 113.36,
+          "probability": 0.9996
+        },
+        {
+          "word": " and",
+          "start": 113.36,
+          "end": 114.44,
+          "probability": 0.8298
+        },
+        {
+          "word": " it",
+          "start": 114.44,
+          "end": 114.58,
+          "probability": 0.9968
+        },
+        {
+          "word": " swings,",
+          "start": 114.58,
+          "end": 115.0,
+          "probability": 0.9989
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "start": 115.78,
+      "end": 118.44,
+      "text": " then when it reaches here, it could not be higher.",
+      "tokens": [
+        51315,
+        550,
+        562,
+        309,
+        14235,
+        510,
+        11,
+        309,
+        727,
+        406,
+        312,
+        2946,
+        13,
+        51465
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.102912,
+      "compression_ratio": 1.6257,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " then",
+          "start": 115.78,
+          "end": 116.36,
+          "probability": 0.9959
+        },
+        {
+          "word": " when",
+          "start": 116.36,
+          "end": 116.5,
+          "probability": 0.9671
+        },
+        {
+          "word": " it",
+          "start": 116.5,
+          "end": 116.68,
+          "probability": 0.9996
+        },
+        {
+          "word": " reaches",
+          "start": 116.68,
+          "end": 117.04,
+          "probability": 0.9995
+        },
+        {
+          "word": " here,",
+          "start": 117.04,
+          "end": 117.32,
+          "probability": 0.9992
+        },
+        {
+          "word": " it",
+          "start": 117.48,
+          "end": 117.52,
+          "probability": 0.999
+        },
+        {
+          "word": " could",
+          "start": 117.52,
+          "end": 117.66,
+          "probability": 0.9987
+        },
+        {
+          "word": " not",
+          "start": 117.66,
+          "end": 117.86,
+          "probability": 0.9992
+        },
+        {
+          "word": " be",
+          "start": 117.86,
+          "end": 118.04,
+          "probability": 0.9998
+        },
+        {
+          "word": " higher.",
+          "start": 118.04,
+          "end": 118.44,
+          "probability": 0.9996
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "start": 118.86,
+      "end": 122.0,
+      "text": " There is a conversion from gravitational potential energy",
+      "tokens": [
+        51465,
+        821,
+        307,
+        257,
+        14298,
+        490,
+        28538,
+        3995,
+        2281,
+        51615
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.102912,
+      "compression_ratio": 1.6257,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " There",
+          "start": 118.86,
+          "end": 119.4,
+          "probability": 0.9925
+        },
+        {
+          "word": " is",
+          "start": 119.4,
+          "end": 119.5,
+          "probability": 0.9867
+        },
+        {
+          "word": " a",
+          "start": 119.5,
+          "end": 119.6,
+          "probability": 0.9987
+        },
+        {
+          "word": " conversion",
+          "start": 119.6,
+          "end": 120.1,
+          "probability": 0.9978
+        },
+        {
+          "word": " from",
+          "start": 120.1,
+          "end": 120.42,
+          "probability": 0.9988
+        },
+        {
+          "word": " gravitational",
+          "start": 120.42,
+          "end": 120.98,
+          "probability": 0.9838
+        },
+        {
+          "word": " potential",
+          "start": 120.98,
+          "end": 121.44,
+          "probability": 0.984
+        },
+        {
+          "word": " energy",
+          "start": 121.44,
+          "end": 122.0,
+          "probability": 0.9987
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "start": 122.0,
+      "end": 125.04,
+      "text": " to kinetic energy back to gravitational potential energy,",
+      "tokens": [
+        50365,
+        281,
+        27135,
+        2281,
+        646,
+        281,
+        28538,
+        3995,
+        2281,
+        11,
+        50515
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.080998,
+      "compression_ratio": 1.4904,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " to",
+          "start": 122.0,
+          "end": 122.18,
+          "probability": 0.791
+        },
+        {
+          "word": " kinetic",
+          "start": 122.18,
+          "end": 122.52,
+          "probability": 0.9901
+        },
+        {
+          "word": " energy",
+          "start": 122.52,
+          "end": 122.92,
+          "probability": 0.9994
+        },
+        {
+          "word": " back",
+          "start": 122.92,
+          "end": 123.16,
+          "probability": 0.6345
+        },
+        {
+          "word": " to",
+          "start": 123.16,
+          "end": 123.42,
+          "probability": 0.9979
+        },
+        {
+          "word": " gravitational",
+          "start": 123.42,
+          "end": 124.18,
+          "probability": 0.9865
+        },
+        {
+          "word": " potential",
+          "start": 124.18,
+          "end": 124.56,
+          "probability": 0.9884
+        },
+        {
+          "word": " energy,",
+          "start": 124.56,
+          "end": 125.04,
+          "probability": 0.998
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "start": 125.06,
+      "end": 126.36,
+      "text": " and it will come to a stop here.",
+      "tokens": [
+        50515,
+        293,
+        309,
+        486,
+        808,
+        281,
+        257,
+        1590,
+        510,
+        13,
+        50565
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.080998,
+      "compression_ratio": 1.4904,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 125.06,
+          "end": 125.16,
+          "probability": 0.9946
+        },
+        {
+          "word": " it",
+          "start": 125.16,
+          "end": 125.28,
+          "probability": 0.903
+        },
+        {
+          "word": " will",
+          "start": 125.28,
+          "end": 125.38,
+          "probability": 0.9915
+        },
+        {
+          "word": " come",
+          "start": 125.38,
+          "end": 125.54,
+          "probability": 0.998
+        },
+        {
+          "word": " to",
+          "start": 125.54,
+          "end": 125.68,
+          "probability": 0.9969
+        },
+        {
+          "word": " a",
+          "start": 125.68,
+          "end": 125.84,
+          "probability": 0.9907
+        },
+        {
+          "word": " stop",
+          "start": 125.84,
+          "end": 126.1,
+          "probability": 0.9989
+        },
+        {
+          "word": " here.",
+          "start": 126.1,
+          "end": 126.36,
+          "probability": 0.9948
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "start": 126.54,
+      "end": 127.66,
+      "text": " And when it swings back,",
+      "tokens": [
+        50565,
+        400,
+        562,
+        309,
+        32386,
+        646,
+        11,
+        50665
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.080998,
+      "compression_ratio": 1.4904,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " And",
+          "start": 126.54,
+          "end": 126.84,
+          "probability": 0.9903
+        },
+        {
+          "word": " when",
+          "start": 126.84,
+          "end": 126.96,
+          "probability": 0.9876
+        },
+        {
+          "word": " it",
+          "start": 126.96,
+          "end": 127.1,
+          "probability": 0.999
+        },
+        {
+          "word": " swings",
+          "start": 127.1,
+          "end": 127.38,
+          "probability": 0.9989
+        },
+        {
+          "word": " back,",
+          "start": 127.38,
+          "end": 127.66,
+          "probability": 0.9995
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "start": 127.96,
+      "end": 130.94,
+      "text": " it should not be able to reach any higher,",
+      "tokens": [
+        50665,
+        309,
+        820,
+        406,
+        312,
+        1075,
+        281,
+        2524,
+        604,
+        2946,
+        11,
+        50815
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.080998,
+      "compression_ratio": 1.4904,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " it",
+          "start": 127.96,
+          "end": 128.54,
+          "probability": 0.9971
+        },
+        {
+          "word": " should",
+          "start": 128.54,
+          "end": 128.68,
+          "probability": 0.9987
+        },
+        {
+          "word": " not",
+          "start": 128.68,
+          "end": 128.88,
+          "probability": 0.9984
+        },
+        {
+          "word": " be",
+          "start": 128.88,
+          "end": 129.04,
+          "probability": 0.9995
+        },
+        {
+          "word": " able",
+          "start": 129.04,
+          "end": 129.28,
+          "probability": 0.9994
+        },
+        {
+          "word": " to",
+          "start": 129.28,
+          "end": 129.46,
+          "probability": 0.9996
+        },
+        {
+          "word": " reach",
+          "start": 129.46,
+          "end": 129.78,
+          "probability": 0.9997
+        },
+        {
+          "word": " any",
+          "start": 129.78,
+          "end": 130.5,
+          "probability": 0.9989
+        },
+        {
+          "word": " higher,",
+          "start": 130.5,
+          "end": 130.94,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "start": 132.5,
+      "end": 135.24,
+      "text": " provided that I do not give this object",
+      "tokens": [
+        50815,
+        5649,
+        300,
+        286,
+        360,
+        406,
+        976,
+        341,
+        2657,
+        51015
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.080998,
+      "compression_ratio": 1.4904,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " provided",
+          "start": 132.5,
+          "end": 133.02,
+          "probability": 0.9971
+        },
+        {
+          "word": " that",
+          "start": 133.02,
+          "end": 133.54,
+          "probability": 0.9958
+        },
+        {
+          "word": " I",
+          "start": 133.54,
+          "end": 133.94,
+          "probability": 0.9966
+        },
+        {
+          "word": " do",
+          "start": 133.94,
+          "end": 134.1,
+          "probability": 0.9982
+        },
+        {
+          "word": " not",
+          "start": 134.1,
+          "end": 134.3,
+          "probability": 0.9989
+        },
+        {
+          "word": " give",
+          "start": 134.3,
+          "end": 134.52,
+          "probability": 0.9994
+        },
+        {
+          "word": " this",
+          "start": 134.52,
+          "end": 134.74,
+          "probability": 0.9994
+        },
+        {
+          "word": " object",
+          "start": 134.74,
+          "end": 135.24,
+          "probability": 0.9995
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "start": 135.24,
+      "end": 137.68,
+      "text": " an initial speed when I stand here.",
+      "tokens": [
+        51015,
+        364,
+        5883,
+        3073,
+        562,
+        286,
+        1463,
+        510,
+        13,
+        51215
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.080998,
+      "compression_ratio": 1.4904,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " an",
+          "start": 135.24,
+          "end": 135.88,
+          "probability": 0.9948
+        },
+        {
+          "word": " initial",
+          "start": 135.88,
+          "end": 136.22,
+          "probability": 0.9997
+        },
+        {
+          "word": " speed",
+          "start": 136.22,
+          "end": 136.66,
+          "probability": 0.9995
+        },
+        {
+          "word": " when",
+          "start": 136.66,
+          "end": 136.92,
+          "probability": 0.9901
+        },
+        {
+          "word": " I",
+          "start": 136.92,
+          "end": 137.06,
+          "probability": 0.9995
+        },
+        {
+          "word": " stand",
+          "start": 137.06,
+          "end": 137.4,
+          "probability": 0.999
+        },
+        {
+          "word": " here.",
+          "start": 137.4,
+          "end": 137.68,
+          "probability": 0.9998
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "start": 139.56,
+      "end": 144.36,
+      "text": " I trust the conservation of mechanical energy for 100%.",
+      "tokens": [
+        50365,
+        286,
+        3361,
+        264,
+        16185,
+        295,
+        12070,
+        2281,
+        337,
+        2319,
+        6856,
+        50765
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 139.56,
+          "end": 140.04,
+          "probability": 0.8914
+        },
+        {
+          "word": " trust",
+          "start": 140.04,
+          "end": 140.52,
+          "probability": 0.9704
+        },
+        {
+          "word": " the",
+          "start": 140.52,
+          "end": 141.52,
+          "probability": 0.9926
+        },
+        {
+          "word": " conservation",
+          "start": 141.52,
+          "end": 141.94,
+          "probability": 0.9977
+        },
+        {
+          "word": " of",
+          "start": 141.94,
+          "end": 142.2,
+          "probability": 0.9987
+        },
+        {
+          "word": " mechanical",
+          "start": 142.2,
+          "end": 142.58,
+          "probability": 0.9719
+        },
+        {
+          "word": " energy",
+          "start": 142.58,
+          "end": 143.12,
+          "probability": 0.9995
+        },
+        {
+          "word": " for",
+          "start": 143.12,
+          "end": 143.78,
+          "probability": 0.948
+        },
+        {
+          "word": " 100%.",
+          "start": 143.78,
+          "end": 144.36,
+          "probability": 0.7295
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "start": 145.46,
+      "end": 147.02,
+      "text": " I may not trust myself.",
+      "tokens": [
+        50765,
+        286,
+        815,
+        406,
+        3361,
+        2059,
+        13,
+        50965
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 145.46,
+          "end": 145.94,
+          "probability": 0.9981
+        },
+        {
+          "word": " may",
+          "start": 145.94,
+          "end": 146.1,
+          "probability": 0.9991
+        },
+        {
+          "word": " not",
+          "start": 146.1,
+          "end": 146.26,
+          "probability": 0.9995
+        },
+        {
+          "word": " trust",
+          "start": 146.26,
+          "end": 146.52,
+          "probability": 0.9997
+        },
+        {
+          "word": " myself.",
+          "start": 146.52,
+          "end": 147.02,
+          "probability": 0.9994
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "start": 149.54,
+      "end": 151.3,
+      "text": " I'm going to release this object,",
+      "tokens": [
+        50965,
+        286,
+        478,
+        516,
+        281,
+        4374,
+        341,
+        2657,
+        11,
+        51065
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I'm",
+          "start": 149.54,
+          "end": 150.02,
+          "probability": 0.9823
+        },
+        {
+          "word": " going",
+          "start": 150.02,
+          "end": 150.16,
+          "probability": 0.9994
+        },
+        {
+          "word": " to",
+          "start": 150.16,
+          "end": 150.32,
+          "probability": 0.9997
+        },
+        {
+          "word": " release",
+          "start": 150.32,
+          "end": 150.64,
+          "probability": 0.9993
+        },
+        {
+          "word": " this",
+          "start": 150.64,
+          "end": 150.88,
+          "probability": 0.9991
+        },
+        {
+          "word": " object,",
+          "start": 150.88,
+          "end": 151.3,
+          "probability": 0.9994
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "start": 151.8,
+      "end": 154.96,
+      "text": " and I hope I will be able to do it at zero speed",
+      "tokens": [
+        51065,
+        293,
+        286,
+        1454,
+        286,
+        486,
+        312,
+        1075,
+        281,
+        360,
+        309,
+        412,
+        4018,
+        3073,
+        51265
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " and",
+          "start": 151.8,
+          "end": 152.28,
+          "probability": 0.999
+        },
+        {
+          "word": " I",
+          "start": 152.28,
+          "end": 152.38,
+          "probability": 0.9996
+        },
+        {
+          "word": " hope",
+          "start": 152.38,
+          "end": 152.6,
+          "probability": 0.9997
+        },
+        {
+          "word": " I",
+          "start": 152.6,
+          "end": 152.74,
+          "probability": 0.9967
+        },
+        {
+          "word": " will",
+          "start": 152.74,
+          "end": 152.88,
+          "probability": 0.9977
+        },
+        {
+          "word": " be",
+          "start": 152.88,
+          "end": 153.0,
+          "probability": 0.9996
+        },
+        {
+          "word": " able",
+          "start": 153.0,
+          "end": 153.24,
+          "probability": 0.9999
+        },
+        {
+          "word": " to",
+          "start": 153.24,
+          "end": 153.4,
+          "probability": 0.9996
+        },
+        {
+          "word": " do",
+          "start": 153.4,
+          "end": 153.54,
+          "probability": 0.9998
+        },
+        {
+          "word": " it",
+          "start": 153.54,
+          "end": 153.7,
+          "probability": 0.9993
+        },
+        {
+          "word": " at",
+          "start": 153.7,
+          "end": 153.9,
+          "probability": 0.9993
+        },
+        {
+          "word": " zero",
+          "start": 153.9,
+          "end": 154.16,
+          "probability": 0.9874
+        },
+        {
+          "word": " speed",
+          "start": 154.16,
+          "end": 154.96,
+          "probability": 0.9983
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "start": 155.72,
+      "end": 158.42,
+      "text": " so that when it comes back it may touch my chin,",
+      "tokens": [
+        51265,
+        370,
+        300,
+        562,
+        309,
+        1487,
+        646,
+        309,
+        815,
+        2557,
+        452,
+        14210,
+        11,
+        51415
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " so",
+          "start": 155.72,
+          "end": 156.2,
+          "probability": 0.5337
+        },
+        {
+          "word": " that",
+          "start": 156.2,
+          "end": 156.34,
+          "probability": 0.9994
+        },
+        {
+          "word": " when",
+          "start": 156.34,
+          "end": 156.48,
+          "probability": 0.9901
+        },
+        {
+          "word": " it",
+          "start": 156.48,
+          "end": 156.62,
+          "probability": 0.9998
+        },
+        {
+          "word": " comes",
+          "start": 156.62,
+          "end": 156.82,
+          "probability": 0.9995
+        },
+        {
+          "word": " back",
+          "start": 156.82,
+          "end": 157.14,
+          "probability": 0.9999
+        },
+        {
+          "word": " it",
+          "start": 157.14,
+          "end": 157.42,
+          "probability": 0.4085
+        },
+        {
+          "word": " may",
+          "start": 157.42,
+          "end": 157.58,
+          "probability": 0.9988
+        },
+        {
+          "word": " touch",
+          "start": 157.58,
+          "end": 157.82,
+          "probability": 0.9996
+        },
+        {
+          "word": " my",
+          "start": 157.82,
+          "end": 158.08,
+          "probability": 0.9999
+        },
+        {
+          "word": " chin,",
+          "start": 158.08,
+          "end": 158.42,
+          "probability": 0.9992
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "start": 158.62,
+      "end": 160.4,
+      "text": " but it may not crush my chin.",
+      "tokens": [
+        51415,
+        457,
+        309,
+        815,
+        406,
+        10321,
+        452,
+        14210,
+        13,
+        51615
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " but",
+          "start": 158.62,
+          "end": 159.24,
+          "probability": 0.9993
+        },
+        {
+          "word": " it",
+          "start": 159.24,
+          "end": 159.34,
+          "probability": 0.9996
+        },
+        {
+          "word": " may",
+          "start": 159.34,
+          "end": 159.46,
+          "probability": 0.9998
+        },
+        {
+          "word": " not",
+          "start": 159.46,
+          "end": 159.66,
+          "probability": 0.9998
+        },
+        {
+          "word": " crush",
+          "start": 159.66,
+          "end": 159.94,
+          "probability": 0.9984
+        },
+        {
+          "word": " my",
+          "start": 159.94,
+          "end": 160.14,
+          "probability": 0.9999
+        },
+        {
+          "word": " chin.",
+          "start": 160.14,
+          "end": 160.4,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "start": 162.32,
+      "end": 164.34,
+      "text": " I want you to be extremely quiet",
+      "tokens": [
+        51615,
+        286,
+        528,
+        291,
+        281,
+        312,
+        4664,
+        5677,
+        51715
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 162.32,
+          "end": 162.8,
+          "probability": 0.9981
+        },
+        {
+          "word": " want",
+          "start": 162.8,
+          "end": 163.0,
+          "probability": 0.9996
+        },
+        {
+          "word": " you",
+          "start": 163.0,
+          "end": 163.12,
+          "probability": 0.9996
+        },
+        {
+          "word": " to",
+          "start": 163.12,
+          "end": 163.24,
+          "probability": 0.9996
+        },
+        {
+          "word": " be",
+          "start": 163.24,
+          "end": 163.36,
+          "probability": 0.9999
+        },
+        {
+          "word": " extremely",
+          "start": 163.36,
+          "end": 163.8,
+          "probability": 0.9996
+        },
+        {
+          "word": " quiet",
+          "start": 163.8,
+          "end": 164.34,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "start": 164.34,
+      "end": 165.6,
+      "text": " because this is no joke.",
+      "tokens": [
+        51715,
+        570,
+        341,
+        307,
+        572,
+        7647,
+        13,
+        51815
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.099441,
+      "compression_ratio": 1.5101,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " because",
+          "start": 164.34,
+          "end": 164.64,
+          "probability": 0.831
+        },
+        {
+          "word": " this",
+          "start": 164.64,
+          "end": 164.88,
+          "probability": 0.9972
+        },
+        {
+          "word": " is",
+          "start": 164.88,
+          "end": 165.0,
+          "probability": 0.9998
+        },
+        {
+          "word": " no",
+          "start": 165.0,
+          "end": 165.18,
+          "probability": 0.9982
+        },
+        {
+          "word": " joke.",
+          "start": 165.18,
+          "end": 165.6,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "start": 166.24,
+      "end": 169.62,
+      "text": " If I don't succeed in giving it zero speed,",
+      "tokens": [
+        50365,
+        759,
+        286,
+        500,
+        380,
+        7754,
+        294,
+        2902,
+        309,
+        4018,
+        3073,
+        11,
+        50565
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " If",
+          "start": 166.24,
+          "end": 166.84,
+          "probability": 0.5584
+        },
+        {
+          "word": " I",
+          "start": 166.84,
+          "end": 167.1,
+          "probability": 0.9966
+        },
+        {
+          "word": " don't",
+          "start": 167.1,
+          "end": 167.56,
+          "probability": 0.9971
+        },
+        {
+          "word": " succeed",
+          "start": 167.56,
+          "end": 168.04,
+          "probability": 0.9989
+        },
+        {
+          "word": " in",
+          "start": 168.04,
+          "end": 168.46,
+          "probability": 0.997
+        },
+        {
+          "word": " giving",
+          "start": 168.46,
+          "end": 168.68,
+          "probability": 0.998
+        },
+        {
+          "word": " it",
+          "start": 168.68,
+          "end": 168.86,
+          "probability": 0.9902
+        },
+        {
+          "word": " zero",
+          "start": 168.86,
+          "end": 169.12,
+          "probability": 0.9733
+        },
+        {
+          "word": " speed,",
+          "start": 169.12,
+          "end": 169.62,
+          "probability": 0.9937
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "start": 169.62,
+      "end": 172.32,
+      "text": " then this will be my last lecture.",
+      "tokens": [
+        50565,
+        550,
+        341,
+        486,
+        312,
+        452,
+        1036,
+        7991,
+        13,
+        50715
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " then",
+          "start": 169.62,
+          "end": 170.56,
+          "probability": 0.997
+        },
+        {
+          "word": " this",
+          "start": 170.56,
+          "end": 171.34,
+          "probability": 0.9918
+        },
+        {
+          "word": " will",
+          "start": 171.34,
+          "end": 171.48,
+          "probability": 0.9995
+        },
+        {
+          "word": " be",
+          "start": 171.48,
+          "end": 171.58,
+          "probability": 0.9999
+        },
+        {
+          "word": " my",
+          "start": 171.58,
+          "end": 171.72,
+          "probability": 0.9997
+        },
+        {
+          "word": " last",
+          "start": 171.72,
+          "end": 171.98,
+          "probability": 0.9995
+        },
+        {
+          "word": " lecture.",
+          "start": 171.98,
+          "end": 172.32,
+          "probability": 0.9993
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "start": 174.28,
+      "end": 175.88,
+      "text": " I will close my eyes.",
+      "tokens": [
+        50815,
+        286,
+        486,
+        1998,
+        452,
+        2575,
+        13,
+        50865
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 174.28,
+          "end": 174.88,
+          "probability": 0.9894
+        },
+        {
+          "word": " will",
+          "start": 174.88,
+          "end": 175.02,
+          "probability": 0.9988
+        },
+        {
+          "word": " close",
+          "start": 175.02,
+          "end": 175.32,
+          "probability": 0.9998
+        },
+        {
+          "word": " my",
+          "start": 175.32,
+          "end": 175.56,
+          "probability": 0.9998
+        },
+        {
+          "word": " eyes.",
+          "start": 175.56,
+          "end": 175.88,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "start": 176.0,
+      "end": 176.94,
+      "text": " I don't want to see this.",
+      "tokens": [
+        50865,
+        286,
+        500,
+        380,
+        528,
+        281,
+        536,
+        341,
+        13,
+        50965
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 176.0,
+          "end": 176.08,
+          "probability": 0.9997
+        },
+        {
+          "word": " don't",
+          "start": 176.08,
+          "end": 176.22,
+          "probability": 0.9996
+        },
+        {
+          "word": " want",
+          "start": 176.22,
+          "end": 176.34,
+          "probability": 0.9953
+        },
+        {
+          "word": " to",
+          "start": 176.34,
+          "end": 176.44,
+          "probability": 0.9999
+        },
+        {
+          "word": " see",
+          "start": 176.44,
+          "end": 176.64,
+          "probability": 0.9999
+        },
+        {
+          "word": " this.",
+          "start": 176.64,
+          "end": 176.94,
+          "probability": 0.9998
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "start": 177.62,
+      "end": 179.58,
+      "text": " So please be very quiet.",
+      "tokens": [
+        50965,
+        407,
+        1767,
+        312,
+        588,
+        5677,
+        13,
+        51065
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " So",
+          "start": 177.62,
+          "end": 178.22,
+          "probability": 0.9954
+        },
+        {
+          "word": " please",
+          "start": 178.22,
+          "end": 178.62,
+          "probability": 0.9619
+        },
+        {
+          "word": " be",
+          "start": 178.62,
+          "end": 178.84,
+          "probability": 0.9987
+        },
+        {
+          "word": " very",
+          "start": 178.84,
+          "end": 179.16,
+          "probability": 0.9999
+        },
+        {
+          "word": " quiet.",
+          "start": 179.16,
+          "end": 179.58,
+          "probability": 0.9998
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "start": 181.64,
+      "end": 183.48,
+      "text": " I almost didn't sleep all night.",
+      "tokens": [
+        51165,
+        286,
+        1920,
+        994,
+        380,
+        2817,
+        439,
+        1818,
+        13,
+        51315
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I",
+          "start": 181.64,
+          "end": 182.24,
+          "probability": 0.997
+        },
+        {
+          "word": " almost",
+          "start": 182.24,
+          "end": 182.52,
+          "probability": 0.9993
+        },
+        {
+          "word": " didn't",
+          "start": 182.52,
+          "end": 182.76,
+          "probability": 0.9996
+        },
+        {
+          "word": " sleep",
+          "start": 182.76,
+          "end": 183.02,
+          "probability": 0.9999
+        },
+        {
+          "word": " all",
+          "start": 183.02,
+          "end": 183.2,
+          "probability": 0.9997
+        },
+        {
+          "word": " night.",
+          "start": 183.2,
+          "end": 183.48,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "start": 184.68,
+      "end": 187.6,
+      "text": " Three, two, one, zero.",
+      "tokens": [
+        51315,
+        6244,
+        11,
+        732,
+        11,
+        472,
+        11,
+        4018,
+        13,
+        51465
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.111766,
+      "compression_ratio": 1.3986,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Three,",
+          "start": 184.68,
+          "end": 185.28,
+          "probability": 0.8458
+        },
+        {
+          "word": " two,",
+          "start": 185.58,
+          "end": 186.04,
+          "probability": 0.9995
+        },
+        {
+          "word": " one,",
+          "start": 186.4,
+          "end": 186.86,
+          "probability": 0.9999
+        },
+        {
+          "word": " zero.",
+          "start": 187.1,
+          "end": 187.6,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "start": 200.68,
+      "end": 202.7,
+      "text": " Physics works, and I'm still alive.",
+      "tokens": [
+        50365,
+        38355,
+        1985,
+        11,
+        293,
+        286,
+        478,
+        920,
+        5465,
+        13,
+        50865
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.368858,
+      "compression_ratio": 0.814,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Physics",
+          "start": 200.68,
+          "end": 201.16,
+          "probability": 0.7439
+        },
+        {
+          "word": " works,",
+          "start": 201.16,
+          "end": 201.62,
+          "probability": 0.9507
+        },
+        {
+          "word": " and",
+          "start": 201.82,
+          "end": 201.92,
+          "probability": 0.9954
+        },
+        {
+          "word": " I'm",
+          "start": 201.92,
+          "end": 202.1,
+          "probability": 0.9607
+        },
+        {
+          "word": " still",
+          "start": 202.1,
+          "end": 202.28,
+          "probability": 0.9996
+        },
+        {
+          "word": " alive.",
+          "start": 202.28,
+          "end": 202.7,
+          "probability": 0.9983
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "start": 202.7,
+      "end": 202.82,
+      "text": " I'm still alive.",
+      "tokens": [
+        50365,
+        286,
+        478,
+        920,
+        5465,
+        13,
+        50415
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.245486,
+      "compression_ratio": 7.8571,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I'm",
+          "start": 202.7,
+          "end": 202.72,
+          "probability": 0.1247
+        },
+        {
+          "word": " still",
+          "start": 202.72,
+          "end": 202.72,
+          "probability": 0.0036
+        },
+        {
+          "word": " alive.",
+          "start": 202.72,
+          "end": 202.82,
+          "probability": 0.0306
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "start": 203.14,
+      "end": 203.26,
+      "text": " I'm still alive.",
+      "tokens": [
+        50415,
+        286,
+        478,
+        920,
+        5465,
+        13,
+        50465
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.245486,
+      "compression_ratio": 7.8571,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " I'm",
+          "start": 203.14,
+          "end": 203.26,
+          "probability": 0.5673
+        },
+        {
+          "word": " still",
+          "start": 203.26,
+          "end": 203.26,
+          "probability": 0.9083
+        },
+        {
+          "word": " alive.",
+          "start": 203.26,
+          "end": 203.26,
+          "probability": 0.9939
+        }
+      ]
+    }
+  ]
+}

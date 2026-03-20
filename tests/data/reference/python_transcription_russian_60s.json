@@ -1,0 +1,1399 @@
+{
+  "file": "russian_60s.wav",
+  "language": "ru",
+  "language_probability": 1,
+  "duration": 60.0,
+  "params": {
+    "beam_size": 6,
+    "temperature": 0.0,
+    "length_penalty": 0.6,
+    "condition_on_previous_text": true,
+    "word_timestamps": true
+  },
+  "segments": [
+    {
+      "id": 1,
+      "start": 0.0,
+      "end": 2.0,
+      "text": " планете, как Южноафриканская",
+      "tokens": [
+        50365,
+        23443,
+        10524,
+        11,
+        3014,
+        27002,
+        1820,
+        1234,
+        41232,
+        481,
+        3605,
+        15720,
+        14801,
+        50465
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " планете,",
+          "start": 0.0,
+          "end": 0.46,
+          "probability": 0.9744
+        },
+        {
+          "word": " как",
+          "start": 0.48,
+          "end": 0.8,
+          "probability": 0.9999
+        },
+        {
+          "word": " Южноафриканская",
+          "start": 0.8,
+          "end": 2.0,
+          "probability": 0.9712
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "start": 2.0,
+      "end": 3.96,
+      "text": " республика. Она же",
+      "tokens": [
+        50465,
+        1475,
+        21186,
+        37412,
+        2833,
+        13,
+        20280,
+        6151,
+        50565
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " республика.",
+          "start": 2.0,
+          "end": 2.66,
+          "probability": 0.9731
+        },
+        {
+          "word": " Она",
+          "start": 3.02,
+          "end": 3.68,
+          "probability": 0.9997
+        },
+        {
+          "word": " же",
+          "start": 3.68,
+          "end": 3.96,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "start": 3.96,
+      "end": 4.6,
+      "text": " ЮАР.",
+      "tokens": [
+        50565,
+        27002,
+        5594,
+        11179,
+        13,
+        50597
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " ЮАР.",
+          "start": 3.96,
+          "end": 4.6,
+          "probability": 0.996
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "start": 5.6,
+      "end": 7.34,
+      "text": " В чём же уникальность?",
+      "tokens": [
+        50667,
+        2348,
+        1358,
+        12868,
+        6151,
+        1595,
+        9715,
+        3842,
+        9930,
+        30,
+        50731
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " В",
+          "start": 5.6,
+          "end": 6.26,
+          "probability": 0.954
+        },
+        {
+          "word": " чём",
+          "start": 6.26,
+          "end": 6.44,
+          "probability": 0.6669
+        },
+        {
+          "word": " же",
+          "start": 6.44,
+          "end": 6.6,
+          "probability": 0.9993
+        },
+        {
+          "word": " уникальность?",
+          "start": 6.6,
+          "end": 7.34,
+          "probability": 0.919
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "start": 7.62,
+      "end": 9.42,
+      "text": " В чём только не уникальность.",
+      "tokens": [
+        50747,
+        2348,
+        1358,
+        12868,
+        9008,
+        1725,
+        1595,
+        9715,
+        3842,
+        9930,
+        13,
+        50838
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " В",
+          "start": 7.62,
+          "end": 7.7,
+          "probability": 0.5895
+        },
+        {
+          "word": " чём",
+          "start": 7.7,
+          "end": 8.36,
+          "probability": 0.9962
+        },
+        {
+          "word": " только",
+          "start": 8.36,
+          "end": 8.62,
+          "probability": 0.9943
+        },
+        {
+          "word": " не",
+          "start": 8.62,
+          "end": 8.9,
+          "probability": 0.983
+        },
+        {
+          "word": " уникальность.",
+          "start": 8.9,
+          "end": 9.42,
+          "probability": 0.9979
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "start": 9.6,
+      "end": 11.18,
+      "text": " Начнём с того, что это",
+      "tokens": [
+        50845,
+        48493,
+        489,
+        12868,
+        776,
+        11283,
+        11,
+        2143,
+        2691,
+        50925
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Начнём",
+          "start": 9.6,
+          "end": 10.26,
+          "probability": 0.9635
+        },
+        {
+          "word": " с",
+          "start": 10.26,
+          "end": 10.38,
+          "probability": 0.9998
+        },
+        {
+          "word": " того,",
+          "start": 10.38,
+          "end": 10.56,
+          "probability": 0.9999
+        },
+        {
+          "word": " что",
+          "start": 10.7,
+          "end": 10.82,
+          "probability": 1.0
+        },
+        {
+          "word": " это",
+          "start": 10.82,
+          "end": 11.18,
+          "probability": 0.9974
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "start": 12.3,
+      "end": 14.04,
+      "text": " страна, единственная страна",
+      "tokens": [
+        50925,
+        18057,
+        386,
+        11,
+        33791,
+        12134,
+        6323,
+        18057,
+        386,
+        51068
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " страна,",
+          "start": 12.3,
+          "end": 12.96,
+          "probability": 0.8852
+        },
+        {
+          "word": " единственная",
+          "start": 13.1,
+          "end": 13.72,
+          "probability": 0.9962
+        },
+        {
+          "word": " страна",
+          "start": 13.72,
+          "end": 14.04,
+          "probability": 0.9992
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "start": 14.04,
+      "end": 15.78,
+      "text": " Африки, которая ещё",
+      "tokens": [
+        51068,
+        3450,
+        3619,
+        4679,
+        2241,
+        11,
+        19032,
+        13993,
+        51155
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Африки,",
+          "start": 14.04,
+          "end": 14.38,
+          "probability": 0.9947
+        },
+        {
+          "word": " которая",
+          "start": 14.52,
+          "end": 14.78,
+          "probability": 0.99
+        },
+        {
+          "word": " ещё",
+          "start": 14.78,
+          "end": 15.78,
+          "probability": 0.9682
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "start": 16.56,
+      "end": 17.84,
+      "text": " когда ООН только",
+      "tokens": [
+        51155,
+        8874,
+        3688,
+        7876,
+        6371,
+        9008,
+        51258
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " когда",
+          "start": 16.56,
+          "end": 17.22,
+          "probability": 0.2149
+        },
+        {
+          "word": " ООН",
+          "start": 17.22,
+          "end": 17.58,
+          "probability": 0.9876
+        },
+        {
+          "word": " только",
+          "start": 17.58,
+          "end": 17.84,
+          "probability": 0.9847
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "start": 17.84,
+      "end": 19.78,
+      "text": " начали подсчитывать, кто",
+      "tokens": [
+        51258,
+        8970,
+        4071,
+        4095,
+        461,
+        9607,
+        25265,
+        11,
+        12278,
+        51354
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " начали",
+          "start": 17.84,
+          "end": 18.28,
+          "probability": 0.9994
+        },
+        {
+          "word": " подсчитывать,",
+          "start": 18.28,
+          "end": 19.32,
+          "probability": 0.9977
+        },
+        {
+          "word": " кто",
+          "start": 19.48,
+          "end": 19.78,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "start": 19.78,
+      "end": 20.88,
+      "text": " развитые, а кто не очень,",
+      "tokens": [
+        51354,
+        47359,
+        5312,
+        11,
+        2559,
+        12278,
+        1725,
+        6730,
+        11,
+        51410
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " развитые,",
+          "start": 19.78,
+          "end": 20.3,
+          "probability": 0.7434
+        },
+        {
+          "word": " а",
+          "start": 20.34,
+          "end": 20.4,
+          "probability": 0.7691
+        },
+        {
+          "word": " кто",
+          "start": 20.4,
+          "end": 20.48,
+          "probability": 0.999
+        },
+        {
+          "word": " не",
+          "start": 20.48,
+          "end": 20.6,
+          "probability": 0.9997
+        },
+        {
+          "word": " очень,",
+          "start": 20.6,
+          "end": 20.88,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "start": 21.54,
+      "end": 23.04,
+      "text": " которые попали в развитые.",
+      "tokens": [
+        51451,
+        10381,
+        10694,
+        4071,
+        740,
+        47359,
+        5312,
+        13,
+        51518
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " которые",
+          "start": 21.54,
+          "end": 22.0,
+          "probability": 0.9966
+        },
+        {
+          "word": " попали",
+          "start": 22.0,
+          "end": 22.4,
+          "probability": 0.9998
+        },
+        {
+          "word": " в",
+          "start": 22.4,
+          "end": 22.52,
+          "probability": 1.0
+        },
+        {
+          "word": " развитые.",
+          "start": 22.52,
+          "end": 23.04,
+          "probability": 0.9866
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "start": 23.34,
+      "end": 25.86,
+      "text": " Это единственная страна Африки, которая",
+      "tokens": [
+        51548,
+        6684,
+        33791,
+        12134,
+        6323,
+        18057,
+        386,
+        3450,
+        3619,
+        4679,
+        2241,
+        11,
+        19032,
+        51659
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Это",
+          "start": 23.34,
+          "end": 24.0,
+          "probability": 0.9981
+        },
+        {
+          "word": " единственная",
+          "start": 24.0,
+          "end": 24.74,
+          "probability": 0.9989
+        },
+        {
+          "word": " страна",
+          "start": 24.74,
+          "end": 25.02,
+          "probability": 0.9989
+        },
+        {
+          "word": " Африки,",
+          "start": 25.02,
+          "end": 25.34,
+          "probability": 0.9996
+        },
+        {
+          "word": " которая",
+          "start": 25.5,
+          "end": 25.86,
+          "probability": 0.9992
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "start": 25.86,
+      "end": 28.1,
+      "text": " является членом БРИКС.",
+      "tokens": [
+        51659,
+        29755,
+        1358,
+        11586,
+        1253,
+        5697,
+        45683,
+        8169,
+        8068,
+        13,
+        51771
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " является",
+          "start": 25.86,
+          "end": 27.06,
+          "probability": 0.9997
+        },
+        {
+          "word": " членом",
+          "start": 27.06,
+          "end": 27.52,
+          "probability": 0.9999
+        },
+        {
+          "word": " БРИКС.",
+          "start": 27.52,
+          "end": 28.1,
+          "probability": 0.9597
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "start": 29.26,
+      "end": 29.82,
+      "text": " То есть",
+      "tokens": [
+        51840,
+        16047,
+        5640,
+        51861
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.186532,
+      "compression_ratio": 2.1796,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " То",
+          "start": 29.26,
+          "end": 29.64,
+          "probability": 0.9894
+        },
+        {
+          "word": " есть",
+          "start": 29.64,
+          "end": 29.82,
+          "probability": 0.9997
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "start": 29.82,
+      "end": 32.04,
+      "text": " такого неформального объединения",
+      "tokens": [
+        50365,
+        31158,
+        1725,
+        18190,
+        31227,
+        16646,
+        30741,
+        5332,
+        50479
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " такого",
+          "start": 29.82,
+          "end": 30.54,
+          "probability": 0.8431
+        },
+        {
+          "word": " неформального",
+          "start": 30.54,
+          "end": 31.34,
+          "probability": 0.9997
+        },
+        {
+          "word": " объединения",
+          "start": 31.34,
+          "end": 32.04,
+          "probability": 0.9996
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "start": 32.04,
+      "end": 32.52,
+      "text": " из",
+      "tokens": [
+        50479,
+        3943,
+        50501
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " из",
+          "start": 32.04,
+          "end": 32.52,
+          "probability": 0.9935
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "start": 33.88,
+      "end": 36.22,
+      "text": " Бразилии, России, Южной Африки,",
+      "tokens": [
+        50501,
+        5697,
+        8421,
+        5435,
+        435,
+        11,
+        29007,
+        11,
+        27002,
+        1820,
+        5007,
+        3450,
+        3619,
+        4679,
+        2241,
+        11,
+        50688
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Бразилии,",
+          "start": 33.88,
+          "end": 34.56,
+          "probability": 0.998
+        },
+        {
+          "word": " России,",
+          "start": 34.72,
+          "end": 35.08,
+          "probability": 0.9888
+        },
+        {
+          "word": " Южной",
+          "start": 35.4,
+          "end": 35.74,
+          "probability": 0.9997
+        },
+        {
+          "word": " Африки,",
+          "start": 35.74,
+          "end": 36.22,
+          "probability": 0.9973
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "start": 37.08,
+      "end": 37.98,
+      "text": " Индии и Китая.",
+      "tokens": [
+        50727,
+        27222,
+        856,
+        7347,
+        1006,
+        3422,
+        1635,
+        4251,
+        13,
+        50774
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Индии",
+          "start": 37.08,
+          "end": 37.44,
+          "probability": 0.9992
+        },
+        {
+          "word": " и",
+          "start": 37.44,
+          "end": 37.6,
+          "probability": 0.9894
+        },
+        {
+          "word": " Китая.",
+          "start": 37.6,
+          "end": 37.98,
+          "probability": 0.9988
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "start": 38.58,
+      "end": 40.14,
+      "text": " По-русски, кстати, знаешь, как хорошо",
+      "tokens": [
+        50812,
+        12121,
+        12,
+        2711,
+        461,
+        47399,
+        11,
+        35304,
+        11,
+        38423,
+        11,
+        3014,
+        16977,
+        50882
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " По",
+          "start": 38.58,
+          "end": 38.92,
+          "probability": 0.9975
+        },
+        {
+          "word": "-русски,",
+          "start": 38.92,
+          "end": 39.22,
+          "probability": 0.997
+        },
+        {
+          "word": " кстати,",
+          "start": 39.26,
+          "end": 39.4,
+          "probability": 0.9288
+        },
+        {
+          "word": " знаешь,",
+          "start": 39.52,
+          "end": 39.64,
+          "probability": 0.9988
+        },
+        {
+          "word": " как",
+          "start": 39.78,
+          "end": 39.84,
+          "probability": 0.9999
+        },
+        {
+          "word": " хорошо",
+          "start": 39.84,
+          "end": 40.14,
+          "probability": 0.9995
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "start": 40.14,
+      "end": 41.7,
+      "text": " можно БРИКС переделать?",
+      "tokens": [
+        50882,
+        8885,
+        5697,
+        45683,
+        8169,
+        8068,
+        15621,
+        1414,
+        2209,
+        30,
+        50960
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " можно",
+          "start": 40.14,
+          "end": 40.4,
+          "probability": 0.9972
+        },
+        {
+          "word": " БРИКС",
+          "start": 40.4,
+          "end": 40.94,
+          "probability": 0.6224
+        },
+        {
+          "word": " переделать?",
+          "start": 40.94,
+          "end": 41.7,
+          "probability": 0.9989
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "start": 41.74,
+      "end": 42.9,
+      "text": " Как? Брюки.",
+      "tokens": [
+        50961,
+        11011,
+        30,
+        5697,
+        481,
+        1148,
+        2241,
+        13,
+        51021
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Как?",
+          "start": 41.74,
+          "end": 41.98,
+          "probability": 0.6631
+        },
+        {
+          "word": " Брюки.",
+          "start": 42.22,
+          "end": 42.9,
+          "probability": 0.966
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "start": 44.48,
+      "end": 45.84,
+      "text": " Бразилия, Россия,",
+      "tokens": [
+        51092,
+        5697,
+        8421,
+        5435,
+        681,
+        11,
+        21997,
+        7409,
+        11,
+        51168
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Бразилия,",
+          "start": 44.48,
+          "end": 45.16,
+          "probability": 0.8496
+        },
+        {
+          "word": " Россия,",
+          "start": 45.16,
+          "end": 45.84,
+          "probability": 0.7447
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "start": 46.02,
+      "end": 47.44,
+      "text": " Южная Африка, Китай, Индия.",
+      "tokens": [
+        51175,
+        27002,
+        1820,
+        6323,
+        3450,
+        3619,
+        4679,
+        2833,
+        11,
+        3422,
+        46996,
+        11,
+        27222,
+        856,
+        7409,
+        13,
+        51247
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Южная",
+          "start": 46.02,
+          "end": 46.36,
+          "probability": 0.9991
+        },
+        {
+          "word": " Африка,",
+          "start": 46.36,
+          "end": 46.68,
+          "probability": 0.9995
+        },
+        {
+          "word": " Китай,",
+          "start": 46.84,
+          "end": 47.06,
+          "probability": 0.9688
+        },
+        {
+          "word": " Индия.",
+          "start": 47.24,
+          "end": 47.44,
+          "probability": 0.9917
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "start": 48.46,
+      "end": 50.04,
+      "text": " Мне кажется, что брюки",
+      "tokens": [
+        51297,
+        23204,
+        26147,
+        11,
+        2143,
+        19603,
+        1148,
+        2241,
+        51377
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Мне",
+          "start": 48.46,
+          "end": 49.14,
+          "probability": 0.9044
+        },
+        {
+          "word": " кажется,",
+          "start": 49.14,
+          "end": 49.3,
+          "probability": 1.0
+        },
+        {
+          "word": " что",
+          "start": 49.4,
+          "end": 49.58,
+          "probability": 0.9955
+        },
+        {
+          "word": " брюки",
+          "start": 49.58,
+          "end": 50.04,
+          "probability": 0.9984
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "start": 50.04,
+      "end": 51.6,
+      "text": " ничем не хуже, чем кирпичи.",
+      "tokens": [
+        51377,
+        757,
+        3903,
+        1504,
+        1725,
+        3490,
+        28285,
+        11,
+        12056,
+        981,
+        4490,
+        1354,
+        3903,
+        435,
+        13,
+        51454
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " ничем",
+          "start": 50.04,
+          "end": 50.4,
+          "probability": 0.9976
+        },
+        {
+          "word": " не",
+          "start": 50.4,
+          "end": 50.5,
+          "probability": 0.9999
+        },
+        {
+          "word": " хуже,",
+          "start": 50.5,
+          "end": 50.74,
+          "probability": 0.9998
+        },
+        {
+          "word": " чем",
+          "start": 50.82,
+          "end": 50.94,
+          "probability": 0.9998
+        },
+        {
+          "word": " кирпичи.",
+          "start": 50.94,
+          "end": 51.6,
+          "probability": 0.9971
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "start": 52.32,
+      "end": 53.6,
+      "text": " Ещё даже лучше.",
+      "tokens": [
+        51492,
+        6538,
+        12534,
+        11210,
+        21569,
+        13,
+        51557
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Ещё",
+          "start": 52.32,
+          "end": 53.0,
+          "probability": 0.5419
+        },
+        {
+          "word": " даже",
+          "start": 53.0,
+          "end": 53.24,
+          "probability": 0.9998
+        },
+        {
+          "word": " лучше.",
+          "start": 53.24,
+          "end": 53.6,
+          "probability": 0.8455
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "start": 53.9,
+      "end": 55.98,
+      "text": " Потом это одна из самых",
+      "tokens": [
+        51557,
+        45941,
+        2691,
+        26985,
+        3943,
+        37241,
+        51678
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " Потом",
+          "start": 53.9,
+          "end": 54.24,
+          "probability": 0.889
+        },
+        {
+          "word": " это",
+          "start": 54.24,
+          "end": 54.6,
+          "probability": 0.5446
+        },
+        {
+          "word": " одна",
+          "start": 54.6,
+          "end": 55.42,
+          "probability": 0.9764
+        },
+        {
+          "word": " из",
+          "start": 55.42,
+          "end": 55.62,
+          "probability": 0.9997
+        },
+        {
+          "word": " самых",
+          "start": 55.62,
+          "end": 55.98,
+          "probability": 0.9999
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "start": 55.98,
+      "end": 57.48,
+      "text": " и даже, наверное,",
+      "tokens": [
+        51678,
+        1006,
+        11210,
+        11,
+        31159,
+        11,
+        51751
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.21382,
+      "compression_ratio": 1.8591,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " и",
+          "start": 55.98,
+          "end": 56.4,
+          "probability": 0.1051
+        },
+        {
+          "word": " даже,",
+          "start": 56.4,
+          "end": 56.64,
+          "probability": 0.9993
+        },
+        {
+          "word": " наверное,",
+          "start": 57.02,
+          "end": 57.48,
+          "probability": 0.9237
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "start": 57.48,
+      "end": 59.4,
+      "text": " ну, если так вот считать",
+      "tokens": [
+        50365,
+        13087,
+        11,
+        8042,
+        2936,
+        5505,
+        22413,
+        2209,
+        50461
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.496246,
+      "compression_ratio": 1.0147,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " ну,",
+          "start": 57.48,
+          "end": 58.0,
+          "probability": 0.1684
+        },
+        {
+          "word": " если",
+          "start": 58.22,
+          "end": 58.64,
+          "probability": 0.9945
+        },
+        {
+          "word": " так",
+          "start": 58.64,
+          "end": 58.96,
+          "probability": 0.9991
+        },
+        {
+          "word": " вот",
+          "start": 58.96,
+          "end": 59.12,
+          "probability": 0.9779
+        },
+        {
+          "word": " считать",
+          "start": 59.12,
+          "end": 59.4,
+          "probability": 0.9766
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "start": 59.4,
+      "end": 59.9,
+      "text": " по-разному,",
+      "tokens": [
+        50461,
+        2801,
+        12,
+        8421,
+        20109,
+        11,
+        50488
+      ],
+      "temperature": 0.0,
+      "avg_logprob": -0.496246,
+      "compression_ratio": 1.0147,
+      "no_speech_prob": 0.0,
+      "words": [
+        {
+          "word": " по",
+          "start": 59.4,
+          "end": 59.6,
+          "probability": 0.9939
+        },
+        {
+          "word": "-разному,",
+          "start": 59.6,
+          "end": 59.9,
+          "probability": 0.7124
+        }
+      ]
+    }
+  ]
+}
