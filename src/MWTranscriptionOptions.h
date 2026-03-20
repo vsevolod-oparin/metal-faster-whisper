@@ -87,6 +87,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// Text prefix for the first segment.
 @property (nonatomic, copy, nullable) NSString *prefix;
 
+// ── Multilingual ────────────────────────────────────────────────────────────
+
+/// Whether to re-detect language per segment.  Default: NO.
+/// When YES, language detection runs on each 30s encoder output and the tokenizer
+/// is updated if the detected language differs from the current one.
+@property (nonatomic) BOOL multilingual;
+
 // ── VAD ─────────────────────────────────────────────────────────────────────
 
 /// Whether to apply voice activity detection before transcription.  Default: NO.

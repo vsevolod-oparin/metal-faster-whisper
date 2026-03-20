@@ -863,8 +863,22 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             }
         }
 
-        // All temperatures tried; return the best result.
+        // All temperatures tried; return the best result with the last temperature
+        // (Python: decode_result = (..., temperature, ...) to pass final temperature
+        // for prompt_reset_on_temperature).
         if (bestResult) {
+            float lastTemperature = [[temperatures lastObject] floatValue];
+            if (bestResult.temperature != lastTemperature) {
+                MWGenerateResult *adjusted = [[MWGenerateResult alloc]
+                    initWithTokenIDs:bestResult.tokenIDs
+                          avgLogProb:bestResult.avgLogProb
+                         temperature:lastTemperature
+                    compressionRatio:bestResult.compressionRatio
+                       noSpeechProb:bestResult.noSpeechProb
+                                text:bestResult.text];
+                [bestResult release];
+                bestResult = adjusted;
+            }
             return [bestResult autorelease];
         }
 
@@ -1383,6 +1397,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     MWTokenizer *loopTokenizer = nil;
     BOOL createdNewTokenizer = NO;
     NSMutableArray<MWTranscriptionSegment *> *segments = nil;
+    NSMutableDictionary<NSString *, MWTokenizer *> *tokenizerCache = nil;  // For multilingual per-segment
 
     @try {
 
@@ -1408,6 +1423,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     NSString *prefix = MWOptString(options, @"prefix");
     NSString *hotwords = MWOptString(options, @"hotwords");
     BOOL wordTimestamps = MWOptBool(options, @"wordTimestamps", NO);
+    BOOL multilingualPerSegment = MWOptBool(options, @"multilingual", NO);
     float hallucinationSilenceThreshold = MWOptFloat(options, @"hallucinationSilenceThreshold", 0.0f);
     NSString *prependPunctuations = MWOptString(options, @"prependPunctuations");
     if (!prependPunctuations) {
@@ -1574,6 +1590,69 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 continue;
             }
 
+            // c2) Per-segment multilingual language re-detection.
+            if (multilingualPerSegment && self.isMultilingual) {
+                // Detect language from this segment's encoder output.
+                NSUInteger encodedElements = [encoderOutput length] / sizeof(float);
+                NSUInteger dModel = encodedElements / kMWEncoderOutputFrames;
+                if (dModel > 0) {
+                    const float *encSrcPtr = (const float *)[encoderOutput bytes];
+                    std::vector<float> encCopy(encSrcPtr, encSrcPtr + encodedElements);
+                    ctranslate2::StorageView encView(
+                        {1, (ctranslate2::dim_t)kMWEncoderOutputFrames, (ctranslate2::dim_t)dModel},
+                        encCopy.data(),
+                        ctranslate2::Device::CPU
+                    );
+
+                    try {
+                        auto futures = _whisper->detect_language(encView);
+                        auto results = futures[0].get();
+
+                        if (!results.empty()) {
+                            // Top result is first (highest probability).
+                            std::string langToken = results[0].first;
+                            // Strip "<|" and "|>" to get language code.
+                            if (langToken.size() >= 4 &&
+                                langToken.substr(0, 2) == "<|" &&
+                                langToken.substr(langToken.size() - 2) == "|>") {
+                                langToken = langToken.substr(2, langToken.size() - 4);
+                            }
+                            NSString *segLanguage = [NSString stringWithUTF8String:langToken.c_str()];
+
+                            if (![segLanguage isEqualToString:loopTokenizer.languageCode]) {
+                                // Check tokenizer cache first.
+                                if (!tokenizerCache) {
+                                    tokenizerCache = [[NSMutableDictionary alloc] init];
+                                    // Cache the current tokenizer.
+                                    tokenizerCache[loopTokenizer.languageCode] = loopTokenizer;
+                                }
+
+                                MWTokenizer *cachedTok = tokenizerCache[segLanguage];
+                                if (cachedTok) {
+                                    loopTokenizer = cachedTok;
+                                } else {
+                                    NSError *tokErr = nil;
+                                    MWTokenizer *newTok = [[MWTokenizer alloc] initWithModelPath:_modelPath
+                                                                                    multilingual:YES
+                                                                                            task:task
+                                                                                        language:segLanguage
+                                                                                           error:&tokErr];
+                                    if (newTok) {
+                                        tokenizerCache[segLanguage] = newTok;
+                                        loopTokenizer = newTok;
+                                        [newTok release];  // Cache retains it.
+                                    }
+                                }
+                                MWLog(@"[MetalWhisper] Multilingual: segment language changed to %@", segLanguage);
+                            }
+                        }
+                    } catch (const std::exception& e) {
+                        MWLog(@"[MetalWhisper] Multilingual: language detection failed: %s", e.what());
+                        // Continue with current tokenizer.
+                    }
+                }
+            }
+
             // d) Build prompt (with previous tokens if conditionOnPreviousText).
             NSArray<NSNumber *> *previousTokens = nil;
             if (conditionOnPreviousText && [allTokens count] > 0) {
@@ -1587,9 +1666,13 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 }
             }
 
+            // Python: prefix=options.prefix if seek == 0 else None
+            // Prefix is only used for the very first 30s window of the entire file.
+            NSString *usePrefix = (seek == 0) ? prefix : nil;
+
             NSArray<NSNumber *> *prompt = [self buildPromptWithPreviousTokens:previousTokens
                                                             withoutTimestamps:withoutTimestamps
-                                                                       prefix:prefix
+                                                                       prefix:usePrefix
                                                                      hotwords:hotwords
                                                                     tokenizer:loopTokenizer];
 
@@ -1619,11 +1702,16 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             }
 
             // f) Check no-speech -> skip if silent.
+            // Python: should_skip = no_speech_prob > no_speech_threshold
+            //         if log_prob_threshold is not None and avg_logprob > log_prob_threshold:
+            //             should_skip = False
             BOOL shouldSkip = NO;
-            if (noSpeechThreshold >= 0.0f && result.noSpeechProb > noSpeechThreshold) {
-                // If logProbThreshold is active and avgLogProb is below it, skip.
-                if (!isnan(logProbThreshold) && result.avgLogProb < logProbThreshold) {
-                    shouldSkip = YES;
+            if (noSpeechThreshold >= 0.0f) {
+                shouldSkip = (result.noSpeechProb > noSpeechThreshold);
+
+                // Un-skip if logprob is high enough (confident transcription despite high no_speech_prob)
+                if (shouldSkip && !isnan(logProbThreshold) && result.avgLogProb > logProbThreshold) {
+                    shouldSkip = NO;
                 }
             }
 
@@ -1645,6 +1733,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             seek = outSeek;
 
             // h) For each segment: decode text, create MWTranscriptionSegment, call handler.
+            NSUInteger segmentsBeforeThisChunk = [segments count];
             for (MWSegmentInfo *seg in splitSegs) {
                 if (stopped) break;
 
@@ -1666,6 +1755,13 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 float endTime = seg.endTime;
                 if (endTime > audioDuration) endTime = audioDuration;
 
+                // Python: if segment["start"] == segment["end"] or not text.strip(): continue
+                NSString *trimmedText = [segText stringByTrimmingCharactersInSet:
+                    [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                if (seg.startTime == endTime || [trimmedText length] == 0) {
+                    continue;
+                }
+
                 MWTranscriptionSegment *transSeg = [[MWTranscriptionSegment alloc]
                     initWithSegmentId:segmentIndex
                                  seek:seg.seek
@@ -1685,9 +1781,9 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             }
 
             // ── Word timestamps ──────────────────────────────────────────
-            if (wordTimestamps && [splitSegs count] > 0) {
-                NSUInteger wordSegStart = segmentIndex - [splitSegs count];
-                [self addWordTimestampsToSegments:segments
+            if (wordTimestamps && [segments count] > segmentsBeforeThisChunk) {
+                NSUInteger wordSegStart = segmentsBeforeThisChunk;
+                float lastSpeechTimestamp = [self addWordTimestampsToSegments:segments
                                         fromIndex:wordSegStart
                                     encoderOutput:encoderOutput
                                         numFrames:MIN(framesAvailable, segmentSize)
@@ -1696,6 +1792,14 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                appendPunctuations:appendPunctuations
                                        timeOffset:timeOffset
                                   segmentDuration:segmentDuration];
+
+                // Python: if not single_timestamp_ending:
+                //             last_word_end = get_end(current_segments)
+                //             if last_word_end is not None and last_word_end > time_offset:
+                //                 seek = round(last_word_end * frames_per_second)
+                if (!singleTimestampEnding && lastSpeechTimestamp > timeOffset) {
+                    seek = (NSUInteger)roundf(lastSpeechTimestamp * (float)_framesPerSecond);
+                }
 
                 // Hallucination silence threshold handling.
                 // Port of Python's generate_segments() hallucination filtering.
@@ -1784,7 +1888,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             }
 
             // Call segment handler for newly added segments.
-            for (NSUInteger si = segmentIndex - [splitSegs count]; si < segmentIndex && !stopped; si++) {
+            for (NSUInteger si = segmentsBeforeThisChunk; si < [segments count] && !stopped; si++) {
                 if (segmentHandler) {
                     BOOL stop = NO;
                     segmentHandler(segments[si], &stop);
@@ -1795,7 +1899,9 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             // i) Update allTokens and handle prompt reset.
             [allTokens addObjectsFromArray:result.tokenIDs];
 
-            if (result.temperature >= promptResetOnTemperature) {
+            // Python: if not condition_on_previous_text or temperature > prompt_reset_on_temperature:
+            //             prompt_reset_since = len(all_tokens)
+            if (!conditionOnPreviousText || result.temperature > promptResetOnTemperature) {
                 promptResetSince = (NSInteger)[allTokens count];
             }
 
@@ -1825,7 +1931,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         [segments release];
         [allTokens release];
         [seekClips release];
-        if (createdNewTokenizer) {
+        if (tokenizerCache) {
+            // Cache owns all tokenizers including the initial one (if multilingual was used).
+            [tokenizerCache release];
+        } else if (createdNewTokenizer) {
             [loopTokenizer release];
         }
     }
@@ -1933,11 +2042,12 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         userSuppressTokens = @[@(-1)];
     }
 
-    // VAD options.
+    // VAD options — Python batched defaults: min_silence_duration_ms=160, max_speech_duration_s=chunk_length
     NSString *vadModelPathStr = MWOptString(options, @"vadModelPath");
     float vadThreshold = MWOptFloat(options, @"vadThreshold", 0.5f);
-    NSInteger minSilenceDurationMs = (NSInteger)MWOptUInt(options, @"minSilenceDurationMs", 2000);
-    float maxSpeechDurationS = MWOptFloat(options, @"maxSpeechDurationS", INFINITY);
+    float chunkLength = (float)kMWDefaultChunkFrames / (float)_framesPerSecond;  // 30.0
+    NSInteger minSilenceDurationMs = (NSInteger)MWOptUInt(options, @"minSilenceDurationMs", 160);
+    float maxSpeechDurationS = MWOptFloat(options, @"maxSpeechDurationS", chunkLength);
 
     // ── Step 1: Run VAD ─────────────────────────────────────────────────────
     if (!vadModelPathStr) {

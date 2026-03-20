@@ -38,6 +38,8 @@
         _hotwords = nil;
         _prefix = nil;
 
+        _multilingual = NO;
+
         _vadFilter = NO;
         _vadModelPath = nil;
     }
@@ -158,6 +160,8 @@
     [copy->_prefix release];
     copy->_prefix = [_prefix copy];
 
+    copy->_multilingual = _multilingual;
+
     copy->_vadFilter = _vadFilter;
     [copy->_vadModelPath release];
     copy->_vadModelPath = [_vadModelPath copy];
@@ -218,6 +222,8 @@
     if (_prefix) {
         dict[@"prefix"] = _prefix;
     }
+
+    dict[@"multilingual"] = @(_multilingual);
 
     dict[@"vadFilter"] = @(_vadFilter);
     if (_vadModelPath) {
