@@ -568,6 +568,143 @@ static void test_m11_long_audio(void) {
     reportResult(name, YES, nil);
 }
 
+// ── Test 9: Prompt Reset on Temperature ──────────────────────────────────────
+
+static void test_m4_3_prompt_reset(void) {
+    const char *name = "test_m4_3_prompt_reset";
+
+    NSError *error = nil;
+    MWTranscriber *t = [[MWTranscriber alloc] initWithModelPath:gTurboModelPath error:&error];
+    ASSERT_TRUE(name, t != nil, loadFailMsg(error));
+
+    NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"physicsworks.wav"];
+    NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+
+    // Run 1: temperatures=[0.8], promptResetOnTemperature=0.1
+    // Since 0.8 > 0.1, prompt resets every segment (context never accumulates)
+    MWTranscriptionOptions *opts1 = [MWTranscriptionOptions defaults];
+    opts1.conditionOnPreviousText = YES;
+    opts1.temperatures = @[@0.8];
+    opts1.promptResetOnTemperature = 0.1f;
+
+    error = nil;
+    MWTranscriptionInfo *info1 = nil;
+    NSArray<MWTranscriptionSegment *> *segments1 =
+        [t transcribeURL:audioURL
+                language:@"en"
+                    task:@"transcribe"
+            typedOptions:opts1
+          segmentHandler:nil
+                    info:&info1
+                   error:&error];
+
+    ASSERT_TRUE(name, segments1 != nil,
+                fmtErr(@"Transcription with prompt reset (threshold=0.1) failed", error));
+    ASSERT_TRUE(name, [segments1 count] > 0,
+                @"No segments with prompt reset (threshold=0.1)");
+
+    // Run 2: temperatures=[0.8], promptResetOnTemperature=2.0
+    // Since 0.8 < 2.0, prompt never resets (context accumulates normally)
+    MWTranscriptionOptions *opts2 = [MWTranscriptionOptions defaults];
+    opts2.conditionOnPreviousText = YES;
+    opts2.temperatures = @[@0.8];
+    opts2.promptResetOnTemperature = 2.0f;
+
+    error = nil;
+    MWTranscriptionInfo *info2 = nil;
+    NSArray<MWTranscriptionSegment *> *segments2 =
+        [t transcribeURL:audioURL
+                language:@"en"
+                    task:@"transcribe"
+            typedOptions:opts2
+          segmentHandler:nil
+                    info:&info2
+                   error:&error];
+
+    ASSERT_TRUE(name, segments2 != nil,
+                fmtErr(@"Transcription with prompt accumulate (threshold=2.0) failed", error));
+    ASSERT_TRUE(name, [segments2 count] > 0,
+                @"No segments with prompt accumulate (threshold=2.0)");
+
+    // Collect text from both runs
+    NSMutableString *text1 = [NSMutableString string];
+    for (MWTranscriptionSegment *seg in segments1) {
+        [text1 appendString:seg.text];
+    }
+    NSMutableString *text2 = [NSMutableString string];
+    for (MWTranscriptionSegment *seg in segments2) {
+        [text2 appendString:seg.text];
+    }
+
+    // Both should produce substantial output
+    ASSERT_TRUE(name, text1.length > 50,
+                fmtStr(@"Expected substantial text with prompt reset", text1));
+    ASSERT_TRUE(name, text2.length > 50,
+                fmtStr(@"Expected substantial text with prompt accumulate", text2));
+
+    fprintf(stdout, "    Prompt reset (threshold=0.1):      %lu segments, %lu chars\n",
+            (unsigned long)[segments1 count], (unsigned long)text1.length);
+    fprintf(stdout, "    Prompt accumulate (threshold=2.0):  %lu segments, %lu chars\n",
+            (unsigned long)[segments2 count], (unsigned long)text2.length);
+    fprintf(stdout, "    Texts differ: %s\n",
+            [text1 isEqualToString:text2] ? "NO (same)" : "YES (expected)");
+
+    [t release];
+    reportResult(name, YES, nil);
+}
+
+// ── Test 10: Error Recovery (garbage encoder output) ─────────────────────────
+
+static void test_m4_4_error_recovery(void) {
+    const char *name = "test_m4_4_error_recovery";
+
+    NSError *error = nil;
+    MWTranscriber *t = [[MWTranscriber alloc] initWithModelPath:gTurboModelPath error:&error];
+    ASSERT_TRUE(name, t != nil, loadFailMsg(error));
+
+    // Create garbage data of wrong size (100 bytes instead of expected 1×1500×1280×4 = 7,680,000)
+    NSMutableData *garbageData = [NSMutableData dataWithLength:100];
+    // Fill with random bytes
+    arc4random_buf([garbageData mutableBytes], 100);
+
+    // Build a minimal prompt (sot sequence for English transcribe)
+    NSArray<NSNumber *> *prompt = @[@50258, @50259, @50360];
+
+    error = nil;
+    MWGenerateResult *result =
+        [t generateWithEncoderOutput:garbageData
+                              prompt:prompt
+                        temperatures:@[@0.0]
+                            beamSize:5
+                            patience:1.0f
+                              bestOf:1
+                       lengthPenalty:1.0f
+                   repetitionPenalty:1.0f
+                   noRepeatNgramSize:0
+             compressionRatioThreshold:2.4f
+                     logProbThreshold:-1.0f
+                   noSpeechThreshold:0.6f
+                       suppressTokens:@[@(-1)]
+                        suppressBlank:YES
+                  maxInitialTimestamp:1.0f
+                        maxNewTokens:0
+                                error:&error];
+
+    // Should return nil with an error, not crash
+    ASSERT_TRUE(name, result == nil,
+                @"Expected nil result for garbage encoder output");
+    ASSERT_TRUE(name, error != nil,
+                @"Expected error to be set for garbage encoder output");
+
+    fprintf(stdout, "    Error domain: %s, code: %ld\n",
+            [[error domain] UTF8String], (long)[error code]);
+    fprintf(stdout, "    Error message: %s\n",
+            [[error localizedDescription] UTF8String]);
+
+    [t release];
+    reportResult(name, YES, nil);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 int main(int argc, const char *argv[]) {
@@ -618,6 +755,12 @@ int main(int argc, const char *argv[]) {
 
         // Test 8: Long audio (skipped unless MW_LARGE_FILE set)
         test_m11_long_audio();
+
+        // Test 9: Prompt reset on temperature
+        test_m4_3_prompt_reset();
+
+        // Test 10: Error recovery (garbage encoder output)
+        test_m4_4_error_recovery();
 
         fprintf(stdout, "\n=== Deferred Results: %d passed, %d failed ===\n",
                 gPassCount, gFailCount);
