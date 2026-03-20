@@ -20,6 +20,8 @@ Created comprehensive documentation and example apps for MetalWhisper: README, A
 | `examples/swift-cli/` | ~60 | Single-file Swift CLI using `import MetalWhisper` via framework |
 | `scripts/build_framework.sh` | ~80 | Builds MetalWhisper.framework with headers, module map, Info.plist |
 | `scripts/build_release.sh` | ~170 | Assembles release tarball: bin, lib, headers, framework, VAD model |
+| `scripts/build_xcframeworks.sh` | ~180 | Builds MetalWhisper/CTranslate2/OnnxRuntime xcframeworks for SPM |
+| `Package.swift` | ~50 | SPM manifest with 3 binaryTargets |
 
 ## Task Checklist
 
@@ -28,7 +30,7 @@ Created comprehensive documentation and example apps for MetalWhisper: README, A
 | M12.1: README | Done |
 | M12.2: API documentation | Done (docs/API.md) |
 | M12.3: SwiftUI example app | Done — `examples/TranscriberApp/` with model selection, language picker, transcribe/translate, drag & drop, streaming, word timestamps, export |
-| M12.4: SPM Package.swift | Deferred — needs SPM build system refactor |
+| M12.4: SPM Package.swift | Done — binary distribution via xcframeworks. `scripts/build_xcframeworks.sh` + `Package.swift`. Tested with consumer package. |
 | M12.5: Homebrew formula | Deferred |
 | M12.6: CI/CD | Deferred |
 | M12.7: Performance guide | Done |

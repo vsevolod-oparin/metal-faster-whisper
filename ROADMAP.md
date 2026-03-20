@@ -608,7 +608,7 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - [x] M12.release: Release packaging script — `scripts/build_release.sh` creates standalone tarball with CLI, dylibs, headers, framework, VAD model
 
 **Deferred (future work):**
-- [ ] M12.4: Package.swift (SPM) — requires SPM-compatible build system refactor
+- [x] M12.4: Package.swift (SPM) — binary distribution via xcframeworks. `scripts/build_xcframeworks.sh` creates MetalWhisper/CTranslate2/OnnxRuntime xcframeworks. Consumer: `.package(path:)` → `import MetalWhisper`
 - [ ] M12.5: Homebrew formula
 - [ ] M12.6: CI/CD (GitHub Actions)
 - [ ] M12.10: Code signing + notarization — requires Apple Developer account

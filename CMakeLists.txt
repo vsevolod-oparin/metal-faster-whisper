@@ -3,6 +3,11 @@ project(MetalWhisper
     VERSION 0.1.0
     LANGUAGES CXX OBJCXX)
 
+# ── macOS deployment target ──────────────────────────────────────────────────
+if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version")
+endif()
+
 # ── C++ and Obj-C++ standards ────────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

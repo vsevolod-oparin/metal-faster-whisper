@@ -1,4 +1,5 @@
-module MetalWhisper {
-    header "MetalWhisper.h"
+framework module MetalWhisper {
+    umbrella header "MetalWhisper.h"
     export *
+    module * { export * }
 }
