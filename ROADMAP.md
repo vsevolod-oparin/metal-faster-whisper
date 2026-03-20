@@ -378,13 +378,17 @@ This is the largest milestone. Split into sub-milestones:
 - M7.5: Concurrent file processing — transcribe multiple files in parallel using GCD dispatch queues
 
 **Tests:**
-- [ ] `test_m7_batch_encode`: 4 chunks batched → encoder output shape `[4, 1500, d_model]`
-- [ ] `test_m7_batch_generate`: 4 chunks → 4 results, each matches unbatched
-- [ ] `test_m7_multilingual_batch`: Mixed-language chunks → per-chunk language detection
-- [ ] `test_m7_throughput`: Batch=8 vs sequential — verify throughput improvement
-- [ ] `test_m7_concurrent_files`: 4 files concurrently — correct results, no Metal contention
+- [x] `test_m7_batch_encode`: 4 silence chunks → each produces 1500×1280 encoder output (verified dModel=1280)
+- [x] `test_m7_batch_transcribe`: 60s physicsworks.wav, batchSize=4 → 3 segments, coherent English text
+- [x] `test_m7_batch_vs_sequential`: jfk.flac batched vs sequential → identical JFK speech text
+- [x] `test_m7_throughput`: 203s audio — batchSize=1: RTF=0.057, batchSize=8: RTF=0.109. Batch is slower on this hardware (GPU memory contention with turbo model on MPS). See findings below.
+- [x] `test_m7_segment_handler`: Callback count matches segment count
+- [ ] `test_m7_multilingual_batch`: Deferred — no multilingual audio available
+- [ ] `test_m7_concurrent_files`: Deferred — requires GCD integration
 
-**Exit criteria:** Batched output matches sequential output exactly; throughput improvement > 1.5x for batch_size=8.
+**Exit criteria:** Batched output matches sequential output — PASS. Throughput improvement > 1.5x — NOT MET (batch is actually 0.5x on this hardware). See report for analysis.
+
+**Finding:** On Apple Silicon with MPS Metal backend, batch inference is **slower** than sequential for the turbo model. The native C++ pipeline has negligible scheduling overhead (unlike Python), so batching adds GPU memory pressure without compensating for any Python/scheduling overhead. The sequential pipeline (M4.6) is the recommended mode for single-file transcription. Batch mode may still benefit multi-file scenarios via GCD dispatch queues (M7.5, deferred).
 
 ---
 

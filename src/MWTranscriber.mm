@@ -2,6 +2,7 @@
 #import "MWAudioDecoder.h"
 #import "MWConstants.h"
 #import "MWHelpers.h"
+#import "MWVoiceActivityDetector.h"
 
 #include <memory>
 #include <string>
@@ -1811,6 +1812,577 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         [segments release];
         [allTokens release];
         [seekClips release];
+        if (createdNewTokenizer) {
+            [loopTokenizer release];
+        }
+    }
+}
+
+// ── Batched Inference ─────────────────────────────────────────────────────────
+
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeBatchedURL:(NSURL *)url
+                                                            language:(nullable NSString *)language
+                                                                task:(NSString *)task
+                                                           batchSize:(NSUInteger)batchSize
+                                                             options:(nullable NSDictionary *)options
+                                                      segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *, BOOL *))segmentHandler
+                                                                info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                               error:(NSError **)error {
+    NSError *decodeError = nil;
+    NSData *audio = [MWAudioDecoder decodeAudioAtURL:url error:&decodeError];
+    if (!audio) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Audio decode failed: %@",
+                    [decodeError localizedDescription]]);
+        return nil;
+    }
+
+    return [self transcribeBatchedAudio:audio
+                               language:language
+                                   task:task
+                              batchSize:batchSize
+                                options:options
+                         segmentHandler:segmentHandler
+                                   info:outInfo
+                                  error:error];
+}
+
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeBatchedAudio:(NSData *)audio
+                                                              language:(nullable NSString *)language
+                                                                  task:(NSString *)task
+                                                             batchSize:(NSUInteger)batchSize
+                                                               options:(nullable NSDictionary *)options
+                                                        segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *, BOOL *))segmentHandler
+                                                                  info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                                 error:(NSError **)error {
+    if (!options) options = @{};
+    if (batchSize == 0) batchSize = 8;
+
+    // Handle empty/nil audio gracefully.
+    if (!audio || [audio length] == 0) {
+        if (outInfo) {
+            *outInfo = [[[MWTranscriptionInfo alloc] initWithLanguage:(language ?: @"en")
+                                                 languageProbability:0.0f
+                                                            duration:0.0f] autorelease];
+        }
+        return @[];
+    }
+
+    // Declare resources that need cleanup in @finally.
+    MWTokenizer *loopTokenizer = nil;
+    BOOL createdNewTokenizer = NO;
+    MWVoiceActivityDetector *vad = nil;
+    NSMutableArray<MWTranscriptionSegment *> *allSegments = nil;
+    MWSpeechTimestampsMap *timestampMap = nil;
+    NSMutableArray<NSData *> *melChunks = nil;
+
+    @try {
+
+    NSUInteger totalSamples = [audio length] / sizeof(float);
+    float audioDuration = (float)totalSamples / (float)kMWTargetSampleRate;
+
+    // ── Parse options ────────────────────────────────────────────────────────
+    NSUInteger beamSize = MWOptUInt(options, @"beamSize", 5);
+    NSUInteger bestOf = MWOptUInt(options, @"bestOf", 5);
+    float patience = MWOptFloat(options, @"patience", 1.0f);
+    float lengthPenalty = MWOptFloat(options, @"lengthPenalty", 1.0f);
+    float repetitionPenalty = MWOptFloat(options, @"repetitionPenalty", 1.0f);
+    NSUInteger noRepeatNgramSize = MWOptUInt(options, @"noRepeatNgramSize", 0);
+    float noSpeechThreshold = MWOptFloat(options, @"noSpeechThreshold", 0.6f);
+    BOOL withoutTimestamps = MWOptBool(options, @"withoutTimestamps", YES);  // defaults to YES for batched
+    BOOL suppressBlank = MWOptBool(options, @"suppressBlank", YES);
+    float maxInitialTimestamp = MWOptFloat(options, @"maxInitialTimestamp", 1.0f);
+    NSString *hotwords = MWOptString(options, @"hotwords");
+    BOOL wordTimestamps = MWOptBool(options, @"wordTimestamps", NO);
+    NSString *prependPunctuations = MWOptString(options, @"prependPunctuations");
+    if (!prependPunctuations) {
+        unichar prependChars[] = {'"', '\'', 0x201C, 0xBF, '(', '[', '{', '-'};
+        prependPunctuations = [NSString stringWithCharacters:prependChars
+                                                      length:sizeof(prependChars)/sizeof(unichar)];
+    }
+    NSString *appendPunctuations = MWOptString(options, @"appendPunctuations");
+    if (!appendPunctuations) {
+        unichar appendChars[] = {'"', '\'', '.', 0x3002, ',', 0xFF0C, '!', 0xFF01,
+                                 '?', 0xFF1F, ':', 0xFF1A, 0x201D, ')', ']', '}', 0x3001};
+        appendPunctuations = [NSString stringWithCharacters:appendChars
+                                                     length:sizeof(appendChars)/sizeof(unichar)];
+    }
+
+    NSArray<NSNumber *> *temperatures = options[@"temperatures"];
+    if (!temperatures || ![temperatures isKindOfClass:[NSArray class]] || [temperatures count] == 0) {
+        temperatures = @[@0.0, @0.2, @0.4, @0.6, @0.8, @1.0];
+    }
+    float temperature = [[temperatures firstObject] floatValue];  // batched uses only first temperature
+
+    NSArray<NSNumber *> *userSuppressTokens = options[@"suppressTokens"];
+    if (!userSuppressTokens || ![userSuppressTokens isKindOfClass:[NSArray class]]) {
+        userSuppressTokens = @[@(-1)];
+    }
+
+    // VAD options.
+    NSString *vadModelPathStr = MWOptString(options, @"vadModelPath");
+    float vadThreshold = MWOptFloat(options, @"vadThreshold", 0.5f);
+    NSInteger minSilenceDurationMs = (NSInteger)MWOptUInt(options, @"minSilenceDurationMs", 2000);
+    float maxSpeechDurationS = MWOptFloat(options, @"maxSpeechDurationS", INFINITY);
+
+    // ── Step 1: Run VAD ─────────────────────────────────────────────────────
+    if (!vadModelPathStr) {
+        // Default: look for silero_vad_v6.onnx in models/ relative to model path
+        vadModelPathStr = [_modelPath stringByDeletingLastPathComponent];
+        vadModelPathStr = [vadModelPathStr stringByAppendingPathComponent:@"silero_vad_v6.onnx"];
+        // If not there, try project-level models/ dir
+        if (![[NSFileManager defaultManager] fileExistsAtPath:vadModelPathStr]) {
+            vadModelPathStr = [[_modelPath stringByDeletingLastPathComponent]
+                               stringByDeletingLastPathComponent];
+            vadModelPathStr = [vadModelPathStr stringByAppendingPathComponent:@"models/silero_vad_v6.onnx"];
+        }
+    }
+
+    NSError *vadError = nil;
+    vad = [[MWVoiceActivityDetector alloc] initWithModelPath:vadModelPathStr error:&vadError];
+    if (!vad) {
+        MWSetError(error, MWErrorCodeTranscribeFailed,
+                   [NSString stringWithFormat:@"VAD load failed: %@",
+                    [vadError localizedDescription]]);
+        return nil;
+    }
+
+    MWVADOptions *vadOpts = [MWVADOptions defaults];
+    vadOpts.threshold = vadThreshold;
+    vadOpts.minSilenceDurationMs = minSilenceDurationMs;
+    vadOpts.maxSpeechDurationS = maxSpeechDurationS;
+
+    NSArray<NSDictionary<NSString *, NSNumber *> *> *speechTimestamps =
+        [vad speechTimestamps:audio options:vadOpts error:&vadError];
+    if (!speechTimestamps) {
+        MWSetError(error, MWErrorCodeTranscribeFailed,
+                   [NSString stringWithFormat:@"VAD speech timestamps failed: %@",
+                    [vadError localizedDescription]]);
+        return nil;
+    }
+
+    MWLog(@"[MetalWhisper] Batched: VAD found %lu speech segments", (unsigned long)[speechTimestamps count]);
+
+    if ([speechTimestamps count] == 0) {
+        // No speech detected
+        if (outInfo) {
+            *outInfo = [[[MWTranscriptionInfo alloc] initWithLanguage:(language ?: @"en")
+                                                 languageProbability:0.0f
+                                                            duration:audioDuration] autorelease];
+        }
+        return @[];
+    }
+
+    // ── Step 2: Collect chunks (max 30s each) ───────────────────────────────
+    NSArray<NSData *> *speechChunks = [MWVoiceActivityDetector collectChunks:audio
+                                                                     chunks:speechTimestamps
+                                                                maxDuration:30.0f];
+
+    MWLog(@"[MetalWhisper] Batched: %lu speech chunks to process", (unsigned long)[speechChunks count]);
+
+    // Build timestamp map for restoring original times.
+    timestampMap = [[MWSpeechTimestampsMap alloc] initWithChunks:speechTimestamps
+                                                   samplingRate:kMWTargetSampleRate];
+
+    // ── Step 3: Compute mel features per chunk ──────────────────────────────
+    NSUInteger nMels = self.nMels;
+    NSUInteger segmentSize = kMWDefaultChunkFrames;  // 3000
+    melChunks = [[NSMutableArray alloc] initWithCapacity:[speechChunks count]];
+
+    for (NSData *chunkAudio in speechChunks) {
+        NSError *melError = nil;
+        NSUInteger frameCount = 0;
+        NSData *mel = [_featureExtractor computeMelSpectrogramFromAudio:chunkAudio
+                                                            frameCount:&frameCount
+                                                                 error:&melError];
+        if (!mel) {
+            MWLog(@"[MetalWhisper] Batched: mel computation failed for chunk, skipping");
+            // Create silence mel
+            mel = [NSMutableData dataWithLength:nMels * segmentSize * sizeof(float)];
+            frameCount = segmentSize;
+        }
+
+        // Pad or trim to 3000 frames.
+        mel = MWPadOrTrimMel(mel, nMels, frameCount, segmentSize);
+        [melChunks addObject:mel];
+    }
+
+    // ── Step 4: Language detection ──────────────────────────────────────────
+    NSString *detectedLanguage = language;
+    float languageProb = 1.0f;
+
+    if (!detectedLanguage && self.isMultilingual) {
+        // Detect from first chunk's audio.
+        NSData *firstChunkAudio = speechChunks[0];
+        NSString *detected = nil;
+        float prob = 0.0f;
+        NSError *langError = nil;
+        BOOL ok = [self detectLanguageFromAudio:firstChunkAudio
+                                       segments:1
+                                      threshold:0.5f
+                               detectedLanguage:&detected
+                                    probability:&prob
+                               allLanguageProbs:nil
+                                          error:&langError];
+        if (ok && detected) {
+            detectedLanguage = detected;
+            languageProb = prob;
+        } else {
+            detectedLanguage = @"en";
+            languageProb = 0.0f;
+        }
+    } else if (!detectedLanguage) {
+        detectedLanguage = @"en";
+        languageProb = 1.0f;
+    }
+
+    MWLog(@"[MetalWhisper] Batched: language=%@ (%.2f)", detectedLanguage, languageProb);
+
+    // ── Step 5: Create tokenizer for detected language/task ──────────────────
+    loopTokenizer = _tokenizer;
+
+    if (![detectedLanguage isEqualToString:_tokenizer.languageCode] ||
+        ![task isEqualToString:@"transcribe"]) {
+        NSError *tokErr = nil;
+        MWTokenizer *newTok = [[MWTokenizer alloc] initWithModelPath:_modelPath
+                                                        multilingual:self.isMultilingual
+                                                                task:task
+                                                            language:detectedLanguage
+                                                               error:&tokErr];
+        if (newTok) {
+            loopTokenizer = newTok;
+            createdNewTokenizer = YES;
+        }
+    }
+
+    // Build suppressed tokens.
+    NSArray<NSNumber *> *builtSuppressTokens = [self buildSuppressedTokens:userSuppressTokens];
+
+    // Build base prompt (no previous tokens for batched).
+    NSArray<NSNumber *> *basePrompt = [self buildPromptWithPreviousTokens:nil
+                                                        withoutTimestamps:withoutTimestamps
+                                                                   prefix:nil
+                                                                 hotwords:hotwords];
+
+    // Build suppress tokens vector for CT2.
+    std::vector<int> suppressVec;
+    for (NSNumber *tok in builtSuppressTokens) {
+        suppressVec.push_back([tok intValue]);
+    }
+
+    // Build base prompt vector.
+    std::vector<size_t> basePromptVec;
+    for (NSNumber *tok in basePrompt) {
+        basePromptVec.push_back([tok unsignedLongValue]);
+    }
+
+    // Compute max_initial_timestamp_index.
+    size_t maxInitTimestampIdx = (size_t)roundf(maxInitialTimestamp / _timePrecision);
+
+    // ── Step 6: Process chunks in batches ───────────────────────────────────
+    allSegments = [[NSMutableArray alloc] init];
+    NSUInteger segmentIndex = 0;
+    BOOL stopped = NO;
+    NSUInteger totalChunks = [melChunks count];
+
+    for (NSUInteger batchStart = 0; batchStart < totalChunks && !stopped; batchStart += batchSize) {
+        NSUInteger batchEnd = batchStart + batchSize;
+        if (batchEnd > totalChunks) batchEnd = totalChunks;
+        NSUInteger B = batchEnd - batchStart;
+
+        // a) Stack mel features into contiguous buffer [B, nMels, 3000].
+        size_t chunkElements = nMels * segmentSize;
+        std::vector<float> stacked(B * chunkElements, 0.0f);
+        for (NSUInteger b = 0; b < B; b++) {
+            NSData *melData = melChunks[batchStart + b];
+            const float *src = (const float *)[melData bytes];
+            memcpy(stacked.data() + b * chunkElements, src, chunkElements * sizeof(float));
+        }
+
+        // b) Encode the batch.
+        ctranslate2::StorageView features(
+            {(ctranslate2::dim_t)B, (ctranslate2::dim_t)nMels, (ctranslate2::dim_t)segmentSize},
+            stacked.data(),
+            ctranslate2::Device::CPU
+        );
+
+        ctranslate2::StorageView encoderOutput;
+        try {
+            auto future = _whisper->encode(features, /*to_cpu=*/true);
+            encoderOutput = future.get();
+
+            if (encoderOutput.device() != ctranslate2::Device::CPU) {
+                encoderOutput = encoderOutput.to(ctranslate2::Device::CPU);
+            }
+            if (encoderOutput.dtype() != ctranslate2::DataType::FLOAT32) {
+                encoderOutput = encoderOutput.to(ctranslate2::DataType::FLOAT32);
+            }
+        } catch (const std::exception& e) {
+            MWLog(@"[MetalWhisper] Batched: encode failed: %s", e.what());
+            continue;
+        }
+
+        // c) Build prompts (one per chunk in batch).
+        std::vector<std::vector<size_t>> prompts(B, basePromptVec);
+
+        // d) Build generate options.
+        ctranslate2::models::WhisperOptions opts;
+        if (temperature > 0.0f) {
+            opts.beam_size = 1;
+            opts.num_hypotheses = bestOf;
+            opts.sampling_topk = 0;
+            opts.sampling_temperature = temperature;
+        } else {
+            opts.beam_size = beamSize;
+            opts.patience = patience;
+            opts.num_hypotheses = 1;
+        }
+        opts.length_penalty = lengthPenalty;
+        opts.repetition_penalty = repetitionPenalty;
+        opts.no_repeat_ngram_size = noRepeatNgramSize;
+        opts.max_length = _maxLength;
+        opts.return_scores = true;
+        opts.return_no_speech_prob = true;
+        opts.suppress_blank = suppressBlank ? true : false;
+        opts.suppress_tokens = suppressVec;
+        opts.max_initial_timestamp_index = maxInitTimestampIdx;
+
+        // e) Generate for the batch.
+        std::vector<std::future<ctranslate2::models::WhisperGenerationResult>> futures;
+        try {
+            futures = _whisper->generate(encoderOutput, prompts, opts);
+        } catch (const std::exception& e) {
+            MWLog(@"[MetalWhisper] Batched: generate failed: %s", e.what());
+            continue;
+        }
+
+        // Encoder output shape for extracting per-chunk slices.
+        const auto& encShape = encoderOutput.shape();
+        NSUInteger dModel = encShape[2];
+        NSUInteger encChunkElements = kMWEncoderOutputFrames * dModel;
+
+        // f) Process each result.
+        for (NSUInteger b = 0; b < B && !stopped; b++) {
+            NSUInteger chunkIdx = batchStart + b;
+            NSUInteger chunkSegStart = segmentIndex;  // Track where this chunk's segments begin.
+
+            ctranslate2::models::WhisperGenerationResult genResult;
+            try {
+                genResult = futures[b].get();
+            } catch (const std::exception& e) {
+                MWLog(@"[MetalWhisper] Batched: result[%lu] failed: %s", (unsigned long)b, e.what());
+                continue;
+            }
+
+            if (genResult.sequences_ids.empty() || genResult.sequences_ids[0].empty()) {
+                continue;
+            }
+
+            const auto& tokenIds = genResult.sequences_ids[0];
+            NSUInteger seqLen = tokenIds.size();
+
+            // Compute avg log prob.
+            float score = genResult.has_scores() ? genResult.scores[0] : 0.0f;
+            float cumLogProb = score * powf((float)seqLen, lengthPenalty);
+            float avgLogProb = cumLogProb / ((float)seqLen + 1.0f);
+            float noSpeechProb = genResult.no_speech_prob;
+
+            // Build token IDs array.
+            NSMutableArray<NSNumber *> *tokenIDsArr = [[NSMutableArray alloc] initWithCapacity:seqLen];
+            for (size_t i = 0; i < seqLen; i++) {
+                [tokenIDsArr addObject:@((NSUInteger)tokenIds[i])];
+            }
+
+            // Decode text and compression ratio.
+            NSString *text = [loopTokenizer decode:tokenIDsArr];
+            float compressionRatio = MWGetCompressionRatio(text);
+
+            // Chunk timing info.
+            NSUInteger chunkSamples = [speechChunks[chunkIdx] length] / sizeof(float);
+            float chunkDuration = (float)chunkSamples / (float)kMWTargetSampleRate;
+
+            // Time offset in the concatenated (filtered) audio.
+            float filteredTimeOffset = 0.0f;
+            for (NSUInteger ci = 0; ci < chunkIdx; ci++) {
+                filteredTimeOffset += (float)([speechChunks[ci] length] / sizeof(float))
+                                     / (float)kMWTargetSampleRate;
+            }
+
+            // Skip no-speech chunks.
+            if (noSpeechThreshold >= 0.0f && noSpeechProb > noSpeechThreshold) {
+                [tokenIDsArr release];
+                continue;
+            }
+
+            if (withoutTimestamps) {
+                // Single segment per chunk.
+                float origStart = [timestampMap originalTimeForTime:filteredTimeOffset];
+                float origEnd = [timestampMap originalTimeForTime:filteredTimeOffset + chunkDuration];
+                if (origEnd > audioDuration) origEnd = audioDuration;
+                if (origStart > origEnd) origStart = origEnd;
+
+                MWTranscriptionSegment *seg = [[MWTranscriptionSegment alloc]
+                    initWithSegmentId:segmentIndex
+                                 seek:0
+                                start:origStart
+                                  end:origEnd
+                                 text:text
+                               tokens:tokenIDsArr
+                          temperature:temperature
+                           avgLogProb:avgLogProb
+                     compressionRatio:compressionRatio
+                        noSpeechProb:noSpeechProb
+                                words:nil];
+                [allSegments addObject:seg];
+                [seg release];
+                segmentIndex++;
+            } else {
+                // Split by timestamps within the chunk.
+                NSUInteger outSeek = 0;
+                BOOL singleTimestampEnding = NO;
+                float segDur = (float)segmentSize / (float)_framesPerSecond;
+
+                NSArray<MWSegmentInfo *> *splitSegs =
+                    [self splitSegmentsByTimestamps:tokenIDsArr
+                                        timeOffset:0.0f
+                                       segmentSize:segmentSize
+                                   segmentDuration:segDur
+                                              seek:0
+                                           outSeek:&outSeek
+                            outSingleTimestampEnding:&singleTimestampEnding];
+
+                for (MWSegmentInfo *seg in splitSegs) {
+                    float segStart = filteredTimeOffset + seg.startTime;
+                    float segEnd = filteredTimeOffset + seg.endTime;
+                    if (segEnd > filteredTimeOffset + chunkDuration) {
+                        segEnd = filteredTimeOffset + chunkDuration;
+                    }
+
+                    float origStart = [timestampMap originalTimeForTime:segStart];
+                    float origEnd = [timestampMap originalTimeForTime:segEnd];
+                    if (origEnd > audioDuration) origEnd = audioDuration;
+                    if (origStart > origEnd) origStart = origEnd;
+
+                    NSUInteger tsBegin = loopTokenizer.timestampBegin;
+                    NSUInteger eot = loopTokenizer.eot;
+                    NSMutableArray<NSNumber *> *textTokens = [[NSMutableArray alloc] init];
+                    for (NSNumber *tok in seg.tokens) {
+                        NSUInteger t = [tok unsignedIntegerValue];
+                        if (t < tsBegin && t != eot) {
+                            [textTokens addObject:tok];
+                        }
+                    }
+                    NSString *segText = [loopTokenizer decode:textTokens];
+                    [textTokens release];
+
+                    MWTranscriptionSegment *transSeg = [[MWTranscriptionSegment alloc]
+                        initWithSegmentId:segmentIndex
+                                     seek:0
+                                    start:origStart
+                                      end:origEnd
+                                     text:segText
+                                   tokens:seg.tokens
+                              temperature:temperature
+                               avgLogProb:avgLogProb
+                         compressionRatio:compressionRatio
+                            noSpeechProb:noSpeechProb
+                                    words:nil];
+                    [allSegments addObject:transSeg];
+                    [transSeg release];
+                    segmentIndex++;
+                }
+            }
+
+            // Word timestamps for this chunk's segments.
+            if (wordTimestamps && segmentIndex > chunkSegStart) {
+                const float *encData = encoderOutput.data<float>();
+                const float *chunkEncPtr = encData + b * encChunkElements;
+                NSData *chunkEnc = [NSData dataWithBytes:chunkEncPtr
+                                                  length:encChunkElements * sizeof(float)];
+
+                NSUInteger numFrames = MIN((NSUInteger)((chunkSamples + kMWDefaultHopLength - 1) / kMWDefaultHopLength),
+                                          (NSUInteger)segmentSize);
+
+                float segDur = (float)segmentSize / (float)_framesPerSecond;
+                [self addWordTimestampsToSegments:allSegments
+                                        fromIndex:chunkSegStart
+                                    encoderOutput:chunkEnc
+                                        numFrames:numFrames
+                                        tokenizer:loopTokenizer
+                              prependPunctuations:prependPunctuations
+                               appendPunctuations:appendPunctuations
+                                       timeOffset:0.0f
+                                  segmentDuration:segDur];
+
+                // Map word timestamps from chunk-relative to original audio time.
+                for (NSUInteger si = chunkSegStart; si < segmentIndex; si++) {
+                    MWTranscriptionSegment *seg = allSegments[si];
+                    if (!seg.words || [seg.words count] == 0) continue;
+
+                    NSMutableArray<MWWord *> *mappedWords = [[NSMutableArray alloc] init];
+                    for (MWWord *w in seg.words) {
+                        float wOrigStart = [timestampMap originalTimeForTime:filteredTimeOffset + w.start];
+                        float wOrigEnd = [timestampMap originalTimeForTime:filteredTimeOffset + w.end];
+                        if (wOrigStart < seg.start) wOrigStart = seg.start;
+                        if (wOrigEnd > seg.end) wOrigEnd = seg.end;
+                        if (wOrigStart > wOrigEnd) wOrigStart = wOrigEnd;
+
+                        MWWord *mapped = [[MWWord alloc] initWithWord:w.word
+                                                                start:wOrigStart
+                                                                  end:wOrigEnd
+                                                          probability:w.probability];
+                        [mappedWords addObject:mapped];
+                        [mapped release];
+                    }
+
+                    MWTranscriptionSegment *newSeg = [[MWTranscriptionSegment alloc]
+                        initWithSegmentId:seg.segmentId
+                                     seek:seg.seek
+                                    start:seg.start
+                                      end:seg.end
+                                     text:seg.text
+                                   tokens:seg.tokens
+                              temperature:seg.temperature
+                               avgLogProb:seg.avgLogProb
+                         compressionRatio:seg.compressionRatio
+                            noSpeechProb:seg.noSpeechProb
+                                    words:mappedWords];
+                    [allSegments replaceObjectAtIndex:si withObject:newSeg];
+                    [newSeg release];
+                    [mappedWords release];
+                }
+            }
+
+            [tokenIDsArr release];
+
+            // Call segment handler for this chunk's segments.
+            if (segmentHandler) {
+                for (NSUInteger si = chunkSegStart; si < segmentIndex && !stopped; si++) {
+                    BOOL stop = NO;
+                    segmentHandler(allSegments[si], &stop);
+                    if (stop) stopped = YES;
+                }
+            }
+        }
+    }
+
+    // ── Build output ────────────────────────────────────────────────────────
+    if (outInfo) {
+        *outInfo = [[[MWTranscriptionInfo alloc] initWithLanguage:detectedLanguage
+                                             languageProbability:languageProb
+                                                        duration:audioDuration] autorelease];
+    }
+
+    _whisperCPU.reset();
+
+    NSArray<MWTranscriptionSegment *> *result = [[allSegments copy] autorelease];
+    return result;
+
+    } @finally {
+        [allSegments release];
+        [melChunks release];
+        [timestampMap release];
+        [vad release];
         if (createdNewTokenizer) {
             [loopTokenizer release];
         }

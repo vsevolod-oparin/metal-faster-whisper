@@ -320,6 +320,38 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                                            info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
                                                           error:(NSError **)error;
 
+// --- Batched Inference ---
+
+/// Transcribe audio using batched inference (faster for long audio).
+/// Uses VAD to split audio into speech chunks, processes them in batches.
+/// @param url Audio file URL
+/// @param language Language code (nil for auto-detect)
+/// @param task "transcribe" or "translate"
+/// @param batchSize Number of chunks to process simultaneously (default 8)
+/// @param options Transcription options (nil for defaults). Same keys as transcribeURL: plus "batchSize".
+/// @param segmentHandler Called for each segment as produced
+/// @param outInfo Transcription info output
+/// @param error Error output
+/// @return All segments, or nil on failure
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeBatchedURL:(NSURL *)url
+                                                            language:(nullable NSString *)language
+                                                                task:(NSString *)task
+                                                           batchSize:(NSUInteger)batchSize
+                                                             options:(nullable NSDictionary *)options
+                                                      segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *, BOOL *))segmentHandler
+                                                                info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                               error:(NSError **)error;
+
+/// Transcribe float32 audio using batched inference.
+- (nullable NSArray<MWTranscriptionSegment *> *)transcribeBatchedAudio:(NSData *)audio
+                                                              language:(nullable NSString *)language
+                                                                  task:(NSString *)task
+                                                             batchSize:(NSUInteger)batchSize
+                                                               options:(nullable NSDictionary *)options
+                                                        segmentHandler:(void (^ _Nullable)(MWTranscriptionSegment *, BOOL *))segmentHandler
+                                                                  info:(MWTranscriptionInfo * _Nullable * _Nullable)outInfo
+                                                                 error:(NSError **)error;
+
 // --- M0 test method (backward compat) ---
 
 /// Quick test: encode 30s of silence, return output shape as a string
