@@ -69,6 +69,25 @@ set_target_properties(MetalWhisper PROPERTIES
     MACOSX_RPATH ON
 )
 
+# ── CLI tool ─────────────────────────────────────────────────────────────────
+# Target name mw_cli avoids case-insensitive collision with MetalWhisper on macOS.
+# OUTPUT_NAME produces the desired "metalwhisper" binary.
+add_executable(mw_cli cli/metalwhisper.mm)
+target_link_libraries(mw_cli
+    PRIVATE
+        MetalWhisper
+        ${FOUNDATION_FRAMEWORK}
+        ${AVFOUNDATION_FRAMEWORK}
+)
+target_compile_options(mw_cli PRIVATE -fno-objc-arc)
+set_target_properties(mw_cli PROPERTIES
+    OUTPUT_NAME metalwhisper
+    INSTALL_RPATH "@loader_path/../lib"
+    BUILD_RPATH "${CMAKE_BINARY_DIR};${CT2_INSTALL_PREFIX}/lib;${ONNXRUNTIME_DIR}/lib"
+    MACOSX_RPATH ON
+)
+install(TARGETS mw_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 # ── Test executables ─────────────────────────────────────────────────────────
 file(GLOB MW_TESTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.mm")
 
