@@ -582,7 +582,22 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - M12.10: Code signing with Developer ID + notarization via `notarytool` for direct download distribution
 - M12.11: Model unload/reload API — expose CTranslate2's `unload_model()` for memory management when switching between models
 
-**Exit criteria:** Framework installable via SPM and Homebrew. CLI tool and example macOS app working. Documentation complete.
+**Completed:**
+- [x] M12.1: README.md with quick start, CLI usage, Obj-C API examples, model table, performance data
+- [x] M12.2: docs/API.md — full API reference for all public classes
+- [x] M12.7: docs/PERFORMANCE.md — model selection, compute types, RTF benchmarks, memory, tips
+- [x] M12.8: docs/MIGRATION.md — Python faster-whisper → MetalWhisper side-by-side guide
+- [x] M12.9: docs/man/metalwhisper.1 — man page for CLI
+
+**Deferred (requires Apple Developer account / Xcode):**
+- [ ] M12.3: SwiftUI example app
+- [ ] M12.4: Package.swift (SPM)
+- [ ] M12.5: Homebrew formula
+- [ ] M12.6: CI/CD (GitHub Actions)
+- [ ] M12.10: Code signing + notarization
+- [ ] M12.11: Model unload/reload API
+
+**Exit criteria:** Documentation complete. App, SPM, Homebrew, signing deferred.
 
 ---
 

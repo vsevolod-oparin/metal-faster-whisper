@@ -1,0 +1,202 @@
+.TH METALWHISPER 1 "March 2026" "MetalWhisper 0.1.0" "User Commands"
+.SH NAME
+metalwhisper \- transcribe audio using Whisper on Apple Silicon
+.SH SYNOPSIS
+.B metalwhisper
+[\fIOPTIONS\fR] \fIinput_file\fR [\fIinput_file2\fR ...]
+.br
+.B metalwhisper
+\fB\-\-model\fR \fIalias\fR \fB\-\-download\fR
+.br
+.B metalwhisper
+\fB\-\-list\-models\fR
+.br
+command | \fBmetalwhisper\fR [\fIOPTIONS\fR] \fB\-\fR
+.SH DESCRIPTION
+.B metalwhisper
+transcribes audio files to text using OpenAI Whisper models running natively
+on Apple Silicon via the Metal GPU. It supports multiple output formats,
+word-level timestamps, voice activity detection, and automatic model
+downloading from HuggingFace.
+.PP
+Audio files in WAV, MP3, M4A, FLAC, CAF, and AIFF formats are supported
+via AVFoundation. For other formats, pipe through
+.BR ffmpeg (1)
+to stdin.
+.SH OPTIONS
+.TP
+\fB\-\-model\fR \fIpath\fR|\fIalias\fR
+Model path, model alias, or HuggingFace repo ID. Required for transcription.
+.br
+Aliases: tiny, tiny.en, base, base.en, small, small.en, medium, medium.en,
+large\-v1, large\-v2, large\-v3, large, turbo, large\-v3\-turbo,
+distil\-large\-v2, distil\-large\-v3, distil\-medium.en, distil\-small.en.
+.br
+If the model is not cached locally, it is downloaded automatically from HuggingFace.
+.TP
+\fB\-\-language\fR \fIcode\fR
+ISO 639\-1 language code (e.g., "en", "ja", "fr"). Default: auto\-detect.
+.TP
+\fB\-\-task\fR \fItask\fR
+Task to perform. Either "transcribe" (default) or "translate" (translates
+any language to English).
+.TP
+\fB\-\-output\-format\fR \fIformat\fR
+Output format. One of: text (default), srt, vtt, json.
+.TP
+\fB\-\-output\-dir\fR \fIdirectory\fR
+Write output files to the specified directory. The directory is created if it
+does not exist. Output filenames are derived from the input filename with the
+appropriate extension.
+.TP
+\fB\-\-compute\-type\fR \fItype\fR
+Compute type for model inference. One of: auto (default), float32, float16,
+int8, int8_float16, int8_float32. Short forms f32, f16, int8_f16, int8_f32
+are also accepted. Default auto selects float16 on Apple Silicon.
+.TP
+\fB\-\-beam\-size\fR \fIn\fR
+Beam size for beam search at temperature 0. Must be between 1 and 100.
+Default: 5.
+.TP
+\fB\-\-word\-timestamps\fR
+Enable word\-level timestamps. Words appear in JSON output and in SRT/VTT
+subtitles.
+.TP
+\fB\-\-vad\-filter\fR
+Enable Silero voice activity detection to skip silent regions. Requires
+\fB\-\-vad\-model\fR.
+.TP
+\fB\-\-vad\-model\fR \fIpath\fR
+Path to the Silero VAD ONNX model file. Required when \fB\-\-vad\-filter\fR
+is used.
+.TP
+\fB\-\-initial\-prompt\fR \fItext\fR
+Initial text prompt to guide the decoder. Useful for setting context, spelling
+of proper nouns, or style (e.g., punctuation).
+.TP
+\fB\-\-hotwords\fR \fItext\fR
+Hotwords to bias the decoder toward. Useful for domain\-specific terminology.
+.TP
+\fB\-\-no\-condition\-on\-previous\-text\fR
+Disable conditioning on previous segment text. By default, the decoder uses
+the previous segment's output as context for the next segment. Disabling this
+can help when transcription of one segment is poor and would pollute subsequent
+segments.
+.TP
+\fB\-\-temperature\fR \fIt1,t2,...\fR
+Comma\-separated list of temperatures for the fallback chain. If decoding at
+the first temperature produces output with high compression ratio or low
+log probability, the next temperature is tried. Default: 0.0,0.2,0.4,0.6,0.8,1.0.
+.TP
+\fB\-\-json\fR
+Shorthand for \fB\-\-output\-format json\fR.
+.TP
+\fB\-\-verbose\fR
+Print progress, timing, and diagnostic information to stderr.
+.TP
+\fB\-\-list\-models\fR
+List all available model aliases and their HuggingFace repo IDs, then list
+any locally cached models with their sizes. Exits without transcribing.
+.TP
+\fB\-\-download\fR
+Download the specified model without transcribing. Requires \fB\-\-model\fR.
+Prints the local path on success.
+.TP
+\fB\-\-help\fR
+Print usage information and exit.
+.TP
+\fB\-\-version\fR
+Print version number and exit.
+.TP
+\fB\-\fR
+Read audio from standard input. The input must be in WAV format. A temporary
+file is created and cleaned up on exit (including on SIGINT/SIGTERM).
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error (invalid arguments, model load failure, transcription failure, etc.).
+.SH EXAMPLES
+Transcribe a file with the turbo model:
+.PP
+.RS
+.nf
+metalwhisper recording.wav \-\-model turbo
+.fi
+.RE
+.PP
+Generate SRT subtitles with word timestamps:
+.PP
+.RS
+.nf
+metalwhisper lecture.mp3 \-\-model turbo \-\-output\-format srt \\
+    \-\-word\-timestamps \-\-output\-dir ./subs
+.fi
+.RE
+.PP
+Transcribe from a video via ffmpeg:
+.PP
+.RS
+.nf
+ffmpeg \-i video.mkv \-ar 16000 \-ac 1 \-f wav \- | \\
+    metalwhisper \-\-model turbo \-
+.fi
+.RE
+.PP
+Translate French audio to English JSON:
+.PP
+.RS
+.nf
+metalwhisper french.mp3 \-\-model large\-v3 \-\-task translate \-\-json
+.fi
+.RE
+.PP
+Download a model for later use:
+.PP
+.RS
+.nf
+metalwhisper \-\-model large\-v3 \-\-download \-\-verbose
+.fi
+.RE
+.PP
+Batch process multiple files:
+.PP
+.RS
+.nf
+metalwhisper *.mp3 \-\-model turbo \-\-output\-format srt \-\-output\-dir ./out
+.fi
+.RE
+.SH FILES
+.TP
+.I ~/Library/Caches/MetalWhisper/models/
+Default cache directory for downloaded models.
+.SH ENVIRONMENT
+.TP
+No environment variables are currently used.
+.SH NOTES
+MetalWhisper requires macOS 14 (Sonoma) or later on Apple Silicon (M1 or newer).
+.PP
+Audio formats supported natively: WAV, MP3, M4A, FLAC, CAF, AIFF. For other
+formats (MKV, OGG, WMA, etc.), convert or pipe through ffmpeg.
+.PP
+The \fB\-\-vad\-filter\fR option requires a Silero VAD ONNX model file. This
+file is not bundled and must be obtained separately.
+.PP
+Models use the CTranslate2 format. The same model files are compatible with
+Python faster\-whisper.
+.SH BUGS
+The \fBno_speech_prob\fR field returns 0.0 on the CTranslate2 Metal backend
+for the turbo model. No\-speech detection based on this field is effectively
+disabled. This does not affect transcription quality.
+.SH SEE ALSO
+.BR ffmpeg (1)
+.PP
+Project: https://github.com/Vsevolod\-Oparin/metal\-faster\-whisper
+.br
+faster\-whisper: https://github.com/SYSTRAN/faster\-whisper
+.br
+CTranslate2: https://github.com/OpenNMT/CTranslate2
+.SH AUTHORS
+Vsevolod Oparin.
