@@ -196,6 +196,115 @@ NSString *path = [mgr resolveModel:@"turbo" progress:nil error:&error];
 // Downloads to ~/Library/Caches/MetalWhisper/models/ if not cached
 ```
 
+## Framework API (Swift)
+
+MetalWhisper ships as a standard macOS `.framework` — `import MetalWhisper` works out of the box after building with `build_framework.sh`. All Obj-C classes are bridged automatically; no bridging header is needed when using the framework bundle.
+
+```swift
+import MetalWhisper
+
+// Resolve model (downloads on first use to ~/Library/Caches/MetalWhisper/models/)
+let manager = MWModelManager.shared()
+let modelPath = try manager.resolveModel("turbo", progress: { bytes, total, name in
+    if total > 0 {
+        print("\rDownloading \(name): \(Int(Double(bytes) / Double(total) * 100))%", terminator: "")
+    }
+})
+
+// Load model
+let transcriber = try MWTranscriber(modelPath: modelPath)
+
+// Configure options
+let opts = MWTranscriptionOptions.defaults()
+opts.wordTimestamps = true
+opts.beamSize = 6
+
+// Transcribe
+var info: MWTranscriptionInfo?
+let segments = try transcriber.transcribeURL(
+    URL(fileURLWithPath: "audio.mp3"),
+    language: nil,                   // nil = auto-detect
+    task: "transcribe",
+    typedOptions: opts,
+    segmentHandler: nil,
+    info: &info
+)
+
+// Process results
+if let info {
+    print("Language: \(info.language) (\(String(format: "%.0f%%", info.languageProbability * 100)))")
+    print("Duration: \(String(format: "%.1fs", info.duration))")
+}
+for seg in segments {
+    print("[\(seg.start) - \(seg.end)] \(seg.text)")
+    if let words = seg.words {
+        for w in words {
+            print("  \(w.start)-\(w.end) \(w.word) (p=\(String(format: "%.2f", w.probability)))")
+        }
+    }
+}
+```
+
+### Async transcription with streaming
+
+The completion-handler variant runs transcription on a background queue and delivers results on the main queue — ideal for SwiftUI / AppKit apps:
+
+```swift
+let opts = MWTranscriptionOptions.defaults()
+opts.wordTimestamps = true
+opts.vadFilter = true
+
+transcriber.transcribeURL(
+    audioURL,
+    language: nil,
+    task: "transcribe",
+    typedOptions: opts,
+    segmentHandler: { segment, _ in
+        // Called on background queue — dispatch to main for UI updates
+        print("[\(segment.start)] \(segment.text)")
+    },
+    completionHandler: { segments, info, error in
+        // Called on main queue
+        if let error { print("Error: \(error.localizedDescription)"); return }
+        guard let segments else { return }
+        print("Done: \(segments.count) segments")
+    }
+)
+```
+
+### Model management
+
+```swift
+let manager = MWModelManager.shared()
+
+// Check if already downloaded
+if manager.isModelCached("turbo") {
+    print("turbo is cached")
+}
+
+// List cached models (returns [[String: Any]] with name, path, sizeBytes)
+let cached = manager.listCachedModels()
+
+// Delete a cached model
+try manager.deleteCachedModel("tiny")
+
+// List all available aliases
+let aliases = MWModelManager.availableModels()  // ["tiny", "base", ..., "turbo"]
+```
+
+### Building the framework
+
+```bash
+./scripts/build_framework.sh
+
+# Then compile Swift code against it:
+swiftc -F build -framework MetalWhisper \
+  -Xlinker -rpath -Xlinker build \
+  transcribe.swift -o transcribe
+```
+
+See [`examples/swift-cli/`](examples/swift-cli/) for a complete CLI example and [`examples/TranscriberApp/`](examples/TranscriberApp/) for a SwiftUI app with drag-and-drop, streaming segments, and export.
+
 ## Supported Models
 
 | Alias | HuggingFace Repo | Parameters | Notes |
