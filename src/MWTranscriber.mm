@@ -1875,6 +1875,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     NSMutableArray<MWTranscriptionSegment *> *allSegments = nil;
     MWSpeechTimestampsMap *timestampMap = nil;
     NSMutableArray<NSData *> *melChunks = nil;
+    NSMutableArray<NSNumber *> *cumulativeOffsets = nil;
 
     @try {
 
@@ -2083,7 +2084,16 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     allSegments = [[NSMutableArray alloc] init];
     NSUInteger segmentIndex = 0;
     BOOL stopped = NO;
+    BOOL anyBatchSucceeded = NO;
     NSUInteger totalChunks = [melChunks count];
+
+    // Precompute cumulative time offsets to avoid O(N^2) loop.
+    cumulativeOffsets = [[NSMutableArray alloc] initWithCapacity:[speechChunks count]];
+    float cumOffset = 0.0f;
+    for (NSUInteger ci = 0; ci < [speechChunks count]; ci++) {
+        [cumulativeOffsets addObject:@(cumOffset)];
+        cumOffset += (float)([speechChunks[ci] length] / sizeof(float)) / (float)kMWTargetSampleRate;
+    }
 
     for (NSUInteger batchStart = 0; batchStart < totalChunks && !stopped; batchStart += batchSize) {
         NSUInteger batchEnd = batchStart + batchSize;
@@ -2095,8 +2105,15 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         std::vector<float> stacked(B * chunkElements, 0.0f);
         for (NSUInteger b = 0; b < B; b++) {
             NSData *melData = melChunks[batchStart + b];
-            const float *src = (const float *)[melData bytes];
-            memcpy(stacked.data() + b * chunkElements, src, chunkElements * sizeof(float));
+            size_t expectedBytes = chunkElements * sizeof(float);
+            if ([melData length] >= expectedBytes) {
+                const float *src = (const float *)[melData bytes];
+                memcpy(stacked.data() + b * chunkElements, src, expectedBytes);
+            } else {
+                MWLog(@"[MetalWhisper] Batched: mel chunk %lu has %lu bytes, expected %zu — using zeros",
+                      (unsigned long)(batchStart + b), (unsigned long)[melData length], expectedBytes);
+                // stacked buffer is already zero-initialized, so we skip this chunk.
+            }
         }
 
         // b) Encode the batch.
@@ -2162,7 +2179,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         NSUInteger encChunkElements = kMWEncoderOutputFrames * dModel;
 
         // f) Process each result.
-        for (NSUInteger b = 0; b < B && !stopped; b++) {
+        for (NSUInteger b = 0; b < B && !stopped; b++) { @autoreleasepool {
             NSUInteger chunkIdx = batchStart + b;
             NSUInteger chunkSegStart = segmentIndex;  // Track where this chunk's segments begin.
 
@@ -2187,8 +2204,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             float avgLogProb = cumLogProb / ((float)seqLen + 1.0f);
             float noSpeechProb = genResult.no_speech_prob;
 
-            // Build token IDs array.
-            NSMutableArray<NSNumber *> *tokenIDsArr = [[NSMutableArray alloc] initWithCapacity:seqLen];
+            // Build token IDs array (autoreleased for exception safety).
+            NSMutableArray<NSNumber *> *tokenIDsArr = [[[NSMutableArray alloc] initWithCapacity:seqLen] autorelease];
             for (size_t i = 0; i < seqLen; i++) {
                 [tokenIDsArr addObject:@((NSUInteger)tokenIds[i])];
             }
@@ -2202,15 +2219,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             float chunkDuration = (float)chunkSamples / (float)kMWTargetSampleRate;
 
             // Time offset in the concatenated (filtered) audio.
-            float filteredTimeOffset = 0.0f;
-            for (NSUInteger ci = 0; ci < chunkIdx; ci++) {
-                filteredTimeOffset += (float)([speechChunks[ci] length] / sizeof(float))
-                                     / (float)kMWTargetSampleRate;
-            }
+            float filteredTimeOffset = [cumulativeOffsets[chunkIdx] floatValue];
 
             // Skip no-speech chunks.
             if (noSpeechThreshold >= 0.0f && noSpeechProb > noSpeechThreshold) {
-                [tokenIDsArr release];
                 continue;
             }
 
@@ -2236,6 +2248,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 [allSegments addObject:seg];
                 [seg release];
                 segmentIndex++;
+                anyBatchSucceeded = YES;
             } else {
                 // Split by timestamps within the chunk.
                 NSUInteger outSeek = 0;
@@ -2290,6 +2303,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                     [allSegments addObject:transSeg];
                     [transSeg release];
                     segmentIndex++;
+                    anyBatchSucceeded = YES;
                 }
             }
 
@@ -2353,8 +2367,6 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 }
             }
 
-            [tokenIDsArr release];
-
             // Call segment handler for this chunk's segments.
             if (segmentHandler) {
                 for (NSUInteger si = chunkSegStart; si < segmentIndex && !stopped; si++) {
@@ -2363,7 +2375,14 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                     if (stop) stopped = YES;
                 }
             }
-        }
+        } } // end @autoreleasepool + for b
+    }
+
+    // If all batches failed but we had chunks to process, report error.
+    if (!anyBatchSucceeded && [melChunks count] > 0) {
+        MWSetError(error, MWErrorCodeTranscribeFailed,
+                   @"All batch transcriptions failed — no segments produced");
+        return nil;
     }
 
     // ── Build output ────────────────────────────────────────────────────────
@@ -2379,6 +2398,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     return result;
 
     } @finally {
+        [cumulativeOffsets release];
         [allSegments release];
         [melChunks release];
         [timestampMap release];

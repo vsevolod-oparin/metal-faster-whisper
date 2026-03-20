@@ -28,16 +28,8 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
 @implementation MWVADOptions
 
 + (instancetype)defaults {
-    MWVADOptions *opts = [[MWVADOptions alloc] init];
-    opts.threshold = 0.5f;
-    opts.negThreshold = -1.0f;
-    opts.minSpeechDurationMs = 0;
-    opts.maxSpeechDurationS = INFINITY;
-    opts.minSilenceDurationMs = 2000;
-    opts.speechPadMs = 400;
-    opts.minSilenceAtMaxSpeech = 98;
-    opts.useMaxPossSilAtMaxSpeech = YES;
-    return [opts autorelease];
+    // All default values are set in -init; no need to duplicate them here.
+    return [[[MWVADOptions alloc] init] autorelease];
 }
 
 - (instancetype)init {
@@ -226,10 +218,30 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
             }
 
             // Update LSTM states from output.
+            //
+            // The Silero VAD model with batch>1 input returns h/c shaped [1,1,128]:
+            // a single hidden state representing the state after processing the last
+            // element in the batch. This matches the Python reference which processes
+            // sequentially in batches of 10000. Our memcpy from offset 0 is correct
+            // for the [1,1,128] case. If a future model version returns per-element
+            // states (e.g., [B,1,128]), we'd need to copy from the last element.
             const float *hnData = outputs[1].GetTensorData<float>();
             const float *cnData = outputs[2].GetTensorData<float>();
-            std::memcpy(h.data(), hnData, h.size() * sizeof(float));
-            std::memcpy(c.data(), cnData, c.size() * sizeof(float));
+
+            auto hnInfo = outputs[1].GetTensorTypeAndShapeInfo();
+            size_t hnTotalElements = hnInfo.GetElementCount();
+            if (hnTotalElements > kVADHiddenSize) {
+                MWLog(@"[MetalWhisper] VAD: hn output has %zu elements (expected %lu). "
+                       "Copying from last element — model may return per-batch states.",
+                      hnTotalElements, (unsigned long)kVADHiddenSize);
+                // Copy from the last [1,128] slice (i.e., the state after the last batch element).
+                size_t offset = hnTotalElements - kVADHiddenSize;
+                std::memcpy(h.data(), hnData + offset, kVADHiddenSize * sizeof(float));
+                std::memcpy(c.data(), cnData + offset, kVADHiddenSize * sizeof(float));
+            } else {
+                std::memcpy(h.data(), hnData, h.size() * sizeof(float));
+                std::memcpy(c.data(), cnData, c.size() * sizeof(float));
+            }
         }
     } catch (const std::exception& e) {
         [probs release];
@@ -262,9 +274,10 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
 
     const float minSpeechSamples = (float)samplingRate * (float)options.minSpeechDurationMs / 1000.0f;
     const float speechPadSamples = (float)samplingRate * (float)options.speechPadMs / 1000.0f;
-    const float maxSpeechSamples = (float)samplingRate * options.maxSpeechDurationS
+    float maxSpeechSamples = (float)samplingRate * options.maxSpeechDurationS
                                     - (float)kVADWindowSize
                                     - 2.0f * speechPadSamples;
+    maxSpeechSamples = fmaxf(0.0f, maxSpeechSamples);
     const float minSilenceSamples = (float)samplingRate * (float)options.minSilenceDurationMs / 1000.0f;
     const float minSilenceSamplesAtMaxSpeech = (float)samplingRate * (float)options.minSilenceAtMaxSpeech / 1000.0f;
     const BOOL useMaxPossSil = options.useMaxPossSilAtMaxSpeech;
@@ -438,7 +451,7 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
                               chunks:(NSArray<NSDictionary<NSString *, NSNumber *> *> *)chunks
                          maxDuration:(float)maxDuration {
     if (!chunks || [chunks count] == 0) {
-        return @[[NSData data]];
+        return @[];
     }
 
     const float *samples = (const float *)[audio bytes];
@@ -462,8 +475,8 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
 
         if (start >= 0 && end <= (NSInteger)([audio length] / sizeof(float)) && chunkSamples > 0) {
             [currentAudio appendBytes:(samples + start) length:chunkSamples * sizeof(float)];
+            currentDuration += (float)chunkSamples;
         }
-        currentDuration += (float)chunkSamples;
     }
 
     // Flush remaining.
@@ -491,6 +504,7 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
     self = [super init];
     if (!self) return nil;
 
+    if (samplingRate == 0) samplingRate = 16000;
     _samplingRate = samplingRate;
     _timePrecision = 2;
 
@@ -501,7 +515,7 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
         NSInteger start = [chunk[@"start"] integerValue];
         NSInteger end = [chunk[@"end"] integerValue];
 
-        silentSamples += start - previousEnd;
+        silentSamples += MAX(0, start - previousEnd);
         previousEnd = end;
 
         _chunkEndSample.push_back(end - silentSamples);
@@ -528,6 +542,8 @@ static const NSUInteger kVADEncoderBatchSize = 10000;
 }
 
 - (NSUInteger)chunkIndexForTime:(float)time isEnd:(BOOL)isEnd {
+    if (_chunkEndSample.empty()) return 0;
+
     NSInteger sample = (NSInteger)(time * (float)_samplingRate);
 
     // Check if sample matches a chunk end exactly (for end timestamps).
