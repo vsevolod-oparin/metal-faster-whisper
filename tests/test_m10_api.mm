@@ -38,18 +38,18 @@ static void test_m10_options_defaults(void) {
     MWTranscriptionOptions *opts = [MWTranscriptionOptions defaults];
     ASSERT_TRUE(name, opts != nil, @"defaults returned nil");
 
-    ASSERT_EQ(name, opts.beamSize, 5);
+    ASSERT_EQ(name, opts.beamSize, 6);
     ASSERT_EQ(name, opts.bestOf, 5);
     ASSERT_FLOAT_EQ(name, opts.patience, 1.0f, 1e-6f);
-    ASSERT_FLOAT_EQ(name, opts.lengthPenalty, 1.0f, 1e-6f);
+    ASSERT_FLOAT_EQ(name, opts.lengthPenalty, 0.6f, 1e-6f);
     ASSERT_FLOAT_EQ(name, opts.repetitionPenalty, 1.0f, 1e-6f);
     ASSERT_EQ(name, opts.noRepeatNgramSize, 0);
 
     // Temperature array.
     ASSERT_TRUE(name, opts.temperatures != nil, @"temperatures nil");
-    ASSERT_EQ(name, [opts.temperatures count], 6);
+    ASSERT_EQ(name, [opts.temperatures count], 2);
     ASSERT_FLOAT_EQ(name, [opts.temperatures[0] floatValue], 0.0f, 1e-6f);
-    ASSERT_FLOAT_EQ(name, [opts.temperatures[5] floatValue], 1.0f, 1e-6f);
+    ASSERT_FLOAT_EQ(name, [opts.temperatures[1] floatValue], 0.6f, 1e-6f);
 
     // Thresholds.
     ASSERT_FLOAT_EQ(name, opts.compressionRatioThreshold, 2.4f, 1e-6f);
@@ -131,7 +131,7 @@ static void test_m10_options_to_dict(void) {
 
     // Check required keys.
     ASSERT_TRUE(name, dict[@"beamSize"] != nil, @"missing beamSize");
-    ASSERT_EQ(name, [dict[@"beamSize"] unsignedIntegerValue], 5);
+    ASSERT_EQ(name, [dict[@"beamSize"] unsignedIntegerValue], 6);
 
     ASSERT_TRUE(name, dict[@"bestOf"] != nil, @"missing bestOf");
     ASSERT_TRUE(name, dict[@"patience"] != nil, @"missing patience");

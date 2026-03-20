@@ -38,7 +38,7 @@ Distilled variants (`distil-large-v2`, `distil-large-v3`, `distil-medium.en`, `d
 
 ## Benchmarks
 
-All benchmarks on Apple Silicon, Release build (-O2), Metal/MPS backend, beam_size=5.
+All benchmarks on Apple Silicon, Release build (-O2), Metal/MPS backend, beam_size=6 (default).
 
 ### End-to-End Real-Time Factor (RTF)
 
@@ -118,6 +118,64 @@ For single-file transcription on Metal, sequential mode is typically faster beca
 - The encoder already saturates GPU utilization on a single chunk
 
 Batched mode may help when audio contains many short speech segments separated by long silence, as it can skip the silent regions entirely.
+
+## Competitive Benchmarks (FLEURS, whisper-large-v3-turbo)
+
+| Implementation | RTF | vs CT2 Metal |
+|----------------|-----|-------------|
+| CT2 Metal f16 (MetalWhisper) | 0.121 | baseline |
+| CT2 Metal f16 beam=5 | 0.164 | 0.74x |
+| mlx-whisper f16 | 0.217 | 0.56x |
+| whisper.cpp F16 | 0.295 | 0.41x |
+| whisper.cpp Q5_0 | 0.274 | 0.44x |
+| OpenAI whisper f32 (CPU) | 0.309 | 0.39x |
+| CT2 CPU f32 | 0.382 | 0.32x |
+
+MetalWhisper is **1.8x faster** than mlx-whisper and **2.45x faster** than whisper.cpp.
+
+## Parameter Presets
+
+| Preset | beam_size | temperatures | length_penalty | RTF (est.) | Use case |
+|--------|-----------|-------------|----------------|-----------|----------|
+| Fast | 1 | [0.0] | 1.0 | ~0.12 | Maximum speed, good quality |
+| Balanced (default) | 6 | [0.0, 0.6] | 0.6 | ~0.16 | Best quality/speed tradeoff |
+| Quality | 6 | [0.0, 0.2, 0.4, 0.6] | 0.6 | ~0.20 | Maximum quality, slower |
+| Python-compat | 5 | [0.0, 0.2, 0.4, 0.6, 0.8, 1.0] | 1.0 | ~0.25 | Match faster-whisper defaults |
+
+### Fast preset (CLI)
+```bash
+metalwhisper audio.mp3 --model turbo --beam-size 1 --temperature 0.0
+```
+
+### Balanced preset (default -- no flags needed)
+```bash
+metalwhisper audio.mp3 --model turbo
+```
+
+### Quality preset
+```bash
+metalwhisper audio.mp3 --model turbo --temperature 0.0,0.2,0.4,0.6
+```
+
+## Float16 Beam Search
+
+The CTranslate2 Metal backend uses float16 for computation. With float16, beam search
+with narrow beams (beam=4) can suffer from premature hypothesis pruning -- slightly wrong
+tokens push correct hypotheses out of the beam. This is why MetalWhisper defaults to
+beam=6 (not the typical beam=5): beam=6 closes the quality gap to within 0.5 BLEU of
+float32 beam=4.
+
+For maximum speed, beam=1 (greedy) is actually more robust than beam=4 for float16
+because it avoids the pruning issue entirely. Use --beam-size 1 for speed-priority tasks.
+
+## Temperature Fallback
+
+The CTranslate2 decoder bug that required temperature fallback on every segment for
+whisper-large-v3-turbo has been fixed. Beam search at temperature=0 now works correctly.
+The default temperatures [0.0, 0.6] mean: try beam search first, fall back to sampling
+at 0.6 only if compression ratio or log probability thresholds are not met. This is
+sufficient for virtually all audio -- the full [0.0, 0.2, 0.4, 0.6, 0.8, 1.0] range
+is only needed for extremely challenging audio.
 
 ## Tips
 

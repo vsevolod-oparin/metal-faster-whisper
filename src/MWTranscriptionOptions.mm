@@ -10,13 +10,13 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _beamSize = 5;
+        _beamSize = 6;
         _bestOf = 5;
         _patience = 1.0f;
-        _lengthPenalty = 1.0f;
+        _lengthPenalty = 0.6f;
         _repetitionPenalty = 1.0f;
         _noRepeatNgramSize = 0;
-        _temperatures = [@[@0.0, @0.2, @0.4, @0.6, @0.8, @1.0] retain];
+        _temperatures = [@[@0.0, @0.6] retain];
 
         _compressionRatioThreshold = 2.4f;
         _logProbThreshold = -1.0f;

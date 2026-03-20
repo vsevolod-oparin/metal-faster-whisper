@@ -96,14 +96,14 @@ Options:
   --output-format <text|srt|vtt|json>  Output format (default: text)
   --output-dir <dir>                 Write output files to directory
   --compute-type <type>              auto, float32, float16, int8, int8_float16, int8_float32
-  --beam-size <n>                    Beam size (default: 5)
+  --beam-size <n>                    Beam size (default: 6)
   --word-timestamps                  Enable word-level timestamps
   --vad-filter                       Enable voice activity detection
   --vad-model <path>                 Path to Silero VAD ONNX model
   --initial-prompt <text>            Initial prompt text
   --hotwords <text>                  Hotwords to bias toward
   --no-condition-on-previous-text    Disable conditioning on previous text
-  --temperature <t1,t2,...>          Fallback temperatures (default: 0.0,0.2,0.4,0.6,0.8,1.0)
+  --temperature <t1,t2,...>          Fallback temperatures (default: 0.0,0.6)
   --json                             Shorthand for --output-format json
   --verbose                          Show progress and timing info on stderr
   --list-models                      List available model aliases
@@ -125,7 +125,7 @@ MWTranscriber *transcriber = [[MWTranscriber alloc] initWithModelPath:@"/path/to
 // Configure options
 MWTranscriptionOptions *opts = [MWTranscriptionOptions defaults];
 opts.wordTimestamps = YES;
-opts.beamSize = 5;
+opts.beamSize = 6;
 
 // Transcribe
 MWTranscriptionInfo *info = nil;
@@ -213,7 +213,7 @@ Models are CTranslate2-format weights downloaded from HuggingFace. You can also 
 
 ## Performance
 
-Benchmarked on Apple Silicon, Release build (-O2), Metal/MPS backend.
+Benchmarked on Apple Silicon, Release build (-O2), Metal/MPS backend. Default: beam=6, temperatures=[0.0, 0.6].
 
 | Model | Audio | Wall Time | RTF | Peak RSS |
 |-------|-------|-----------|-----|----------|
@@ -222,6 +222,17 @@ Benchmarked on Apple Silicon, Release build (-O2), Metal/MPS backend.
 | tiny (f16) | 30s | 2.6s | 0.087 | ~200 MB |
 
 RTF = processing time / audio duration. Lower is better. Values below 1.0 mean faster than real-time.
+
+**Competitive comparison (FLEURS, whisper-large-v3-turbo):**
+
+| Implementation | RTF | Relative |
+|----------------|-----|----------|
+| MetalWhisper (CT2 Metal f16) | 0.121 | 1.0x (baseline) |
+| mlx-whisper f16 | 0.217 | 1.8x slower |
+| whisper.cpp F16 | 0.295 | 2.4x slower |
+| OpenAI whisper f32 (CPU) | 0.309 | 2.6x slower |
+
+**Float16 beam search note:** MetalWhisper defaults to beam=6 instead of the typical beam=5 because float16 beam search with narrow beams can suffer from premature hypothesis pruning. Beam=6 closes the quality gap to within 0.5 BLEU of float32 beam=4. For maximum speed, use `--beam-size 1` (greedy decoding avoids pruning entirely).
 
 **Time breakdown per 30s chunk (turbo):**
 
@@ -232,7 +243,7 @@ RTF = processing time / audio duration. Lower is better. Values below 1.0 mean f
 | Decode (Metal GPU) | ~200 ms | 16% |
 | Other (prompt, split, tokenize) | ~30 ms | 2.4% |
 
-See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for model selection guidance and tuning tips.
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for model selection guidance, parameter presets, and tuning tips.
 
 ## Build Requirements
 

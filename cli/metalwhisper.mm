@@ -278,7 +278,7 @@ static void printUsage(void) {
         "  --output-dir <dir>            Write output files to directory\n"
         "  --compute-type <type>         Compute type: auto, float32, float16, int8,\n"
         "                                int8_float16, int8_float32 (default: auto)\n"
-        "  --beam-size <n>               Beam size (default: 5)\n"
+        "  --beam-size <n>               Beam size (default: 6)\n"
         "  --word-timestamps             Enable word-level timestamps\n"
         "  --vad-filter                  Enable voice activity detection\n"
         "  --vad-model <path>            Path to Silero VAD ONNX model\n"
@@ -287,7 +287,7 @@ static void printUsage(void) {
         "  --no-condition-on-previous-text  Disable conditioning on previous text\n"
         "                                (default: conditioning is ON)\n"
         "  --temperature <t1,t2,...>     Temperature(s) for fallback\n"
-        "                                (default: 0.0,0.2,0.4,0.6,0.8,1.0)\n"
+        "                                (default: 0.0,0.6)\n"
         "  --json                        Shorthand for --output-format json\n"
         "  --verbose                     Show progress and timing info on stderr\n"
         "  --list-models                 List available model aliases\n"
@@ -364,14 +364,14 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
     opts->outputFormat = OutputFormatText;
     opts->outputDir = nil;
     opts->computeType = MWComputeTypeDefault;
-    opts->beamSize = 5;
+    opts->beamSize = 6;
     opts->wordTimestamps = NO;
     opts->vadFilter = NO;
     opts->vadModelPath = nil;
     opts->initialPrompt = nil;
     opts->hotwords = nil;
     opts->conditionOnPreviousText = YES;
-    opts->temperatures = @[@(0.0f), @(0.2f), @(0.4f), @(0.6f), @(0.8f), @(1.0f)];
+    opts->temperatures = @[@(0.0f), @(0.6f)];
     opts->verbose = NO;
     opts->inputFiles = [NSMutableArray array];
     opts->readStdin = NO;
