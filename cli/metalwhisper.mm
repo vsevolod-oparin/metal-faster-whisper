@@ -9,12 +9,47 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <csignal>
 #include <getopt.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 // ── Version ────────────────────────────────────────────────────────────────
 
 static const char *kVersion = "0.1.0";
+
+// ── Signal handling for temp file cleanup ─────────────────────────────────
+
+static char gStdinTempPathBuf[1024] = {0};
+
+static void signalHandler(int sig) {
+    if (gStdinTempPathBuf[0] != '\0') {
+        unlink(gStdinTempPathBuf);
+    }
+    _exit(128 + sig);
+}
+
+// ── Known Whisper language codes ──────────────────────────────────────────
+
+static BOOL isKnownLanguageCode(NSString *code) {
+    static NSSet<NSString *> *known = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        known = [[NSSet setWithObjects:
+            @"af", @"am", @"ar", @"as", @"az", @"ba", @"be", @"bg", @"bn", @"bo",
+            @"br", @"bs", @"ca", @"cs", @"cy", @"da", @"de", @"el", @"en", @"es",
+            @"et", @"eu", @"fa", @"fi", @"fo", @"fr", @"gl", @"gu", @"ha", @"haw",
+            @"he", @"hi", @"hr", @"ht", @"hu", @"hy", @"id", @"is", @"it", @"ja",
+            @"jw", @"ka", @"kk", @"km", @"kn", @"ko", @"la", @"lb", @"ln", @"lo",
+            @"lt", @"lv", @"mg", @"mi", @"mk", @"ml", @"mn", @"mr", @"ms", @"mt",
+            @"my", @"ne", @"nl", @"nn", @"no", @"oc", @"pa", @"pl", @"ps", @"pt",
+            @"ro", @"ru", @"sa", @"sd", @"si", @"sk", @"sl", @"sn", @"so", @"sq",
+            @"sr", @"su", @"sv", @"sw", @"ta", @"te", @"tg", @"th", @"tk", @"tl",
+            @"tr", @"tt", @"uk", @"ur", @"uz", @"vi", @"yi", @"yo", @"zh", @"yue",
+            nil] retain];
+    });
+    return [known containsObject:code];
+}
 
 // ── Output format ──────────────────────────────────────────────────────────
 
@@ -50,6 +85,7 @@ struct CLIOptions {
 // ── Time formatting ────────────────────────────────────────────────────────
 
 static NSString *formatTimeSRT(float seconds) {
+    if (seconds < 0.0f) seconds = 0.0f;
     int totalMs = (int)(seconds * 1000.0f + 0.5f);
     int h = totalMs / 3600000;
     int m = (totalMs % 3600000) / 60000;
@@ -59,6 +95,7 @@ static NSString *formatTimeSRT(float seconds) {
 }
 
 static NSString *formatTimeVTT(float seconds) {
+    if (seconds < 0.0f) seconds = 0.0f;
     int totalMs = (int)(seconds * 1000.0f + 0.5f);
     int h = totalMs / 3600000;
     int m = (totalMs % 3600000) / 60000;
@@ -235,15 +272,16 @@ static void printUsage(void) {
         "  --task <transcribe|translate>  Task (default: transcribe)\n"
         "  --output-format <text|srt|vtt|json>  Output format (default: text)\n"
         "  --output-dir <dir>            Write output files to directory\n"
-        "  --compute-type <auto|float32|float16>  Compute type (default: auto)\n"
+        "  --compute-type <type>         Compute type: auto, float32, float16, int8,\n"
+        "                                int8_float16, int8_float32 (default: auto)\n"
         "  --beam-size <n>               Beam size (default: 5)\n"
         "  --word-timestamps             Enable word-level timestamps\n"
         "  --vad-filter                  Enable voice activity detection\n"
         "  --vad-model <path>            Path to Silero VAD ONNX model\n"
         "  --initial-prompt <text>       Initial prompt text\n"
         "  --hotwords <text>             Hotwords to bias toward\n"
-        "  --condition-on-previous-text  Condition on previous text (default: yes)\n"
-        "  --no-condition-on-previous-text  Disable conditioning\n"
+        "  --no-condition-on-previous-text  Disable conditioning on previous text\n"
+        "                                (default: conditioning is ON)\n"
         "  --temperature <t1,t2,...>     Temperature(s) for fallback\n"
         "                                (default: 0.0,0.2,0.4,0.6,0.8,1.0)\n"
         "  --json                        Shorthand for --output-format json\n"
@@ -264,8 +302,24 @@ static NSArray<NSNumber *> *parseTemperatures(const char *str) {
         NSString *trimmed = [part stringByTrimmingCharactersInSet:
             [NSCharacterSet whitespaceCharacterSet]];
         if (trimmed.length > 0) {
-            [temps addObject:@([trimmed floatValue])];
+            // Validate it's a number: scanner check
+            NSScanner *scanner = [NSScanner scannerWithString:trimmed];
+            float val = 0.0f;
+            if ([scanner scanFloat:&val] && [scanner isAtEnd]) {
+                if (val < 0.0f) {
+                    fprintf(stderr, "Warning: Negative temperature %.2f clamped to 0.0\n", val);
+                    val = 0.0f;
+                }
+                [temps addObject:@(val)];
+            } else {
+                fprintf(stderr, "Warning: Ignoring non-numeric temperature value '%s'\n",
+                        [trimmed UTF8String]);
+            }
         }
+    }
+    if (temps.count == 0) {
+        fprintf(stderr, "Warning: No valid temperatures parsed, using default 0.0\n");
+        [temps addObject:@(0.0f)];
     }
     return temps;
 }
@@ -278,6 +332,10 @@ static MWComputeType parseComputeType(const char *str) {
         return MWComputeTypeFloat16;
     } else if ([s isEqualToString:@"int8"]) {
         return MWComputeTypeInt8;
+    } else if ([s isEqualToString:@"int8_float16"] || [s isEqualToString:@"int8_f16"]) {
+        return MWComputeTypeInt8Float16;
+    } else if ([s isEqualToString:@"int8_float32"] || [s isEqualToString:@"int8_f32"]) {
+        return MWComputeTypeInt8Float32;
     }
     return MWComputeTypeDefault;
 }
@@ -287,6 +345,8 @@ static OutputFormat parseOutputFormat(const char *str) {
     if ([s isEqualToString:@"srt"]) return OutputFormatSRT;
     if ([s isEqualToString:@"vtt"]) return OutputFormatVTT;
     if ([s isEqualToString:@"json"]) return OutputFormatJSON;
+    if ([s isEqualToString:@"text"] || [s isEqualToString:@"txt"]) return OutputFormatText;
+    fprintf(stderr, "Warning: Unknown output format '%s', using text\n", str);
     return OutputFormatText;
 }
 
@@ -344,7 +404,14 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
             opts->computeType = parseComputeType(argv[i]);
         } else if (strcmp(arg, "--beam-size") == 0) {
             if (++i >= argc) { fprintf(stderr, "Error: --beam-size requires a value\n"); return NO; }
-            opts->beamSize = (NSUInteger)atoi(argv[i]);
+            {
+                long val = strtol(argv[i], NULL, 10);
+                if (val < 1 || val > 100) {
+                    fprintf(stderr, "Error: --beam-size must be between 1 and 100\n");
+                    return NO;
+                }
+                opts->beamSize = (NSUInteger)val;
+            }
         } else if (strcmp(arg, "--vad-model") == 0) {
             if (++i >= argc) { fprintf(stderr, "Error: --vad-model requires a value\n"); return NO; }
             opts->vadModelPath = [NSString stringWithUTF8String:argv[i]];
@@ -364,7 +431,7 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
         } else if (strcmp(arg, "--vad-filter") == 0) {
             opts->vadFilter = YES;
         } else if (strcmp(arg, "--condition-on-previous-text") == 0) {
-            opts->conditionOnPreviousText = YES;
+            opts->conditionOnPreviousText = YES;  // explicit re-enable (for scripts)
         } else if (strcmp(arg, "--no-condition-on-previous-text") == 0) {
             opts->conditionOnPreviousText = NO;
         } else if (strcmp(arg, "--json") == 0) {
@@ -392,12 +459,19 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
 
 // ── Stdin reading ──────────────────────────────────────────────────────────
 
+static const NSUInteger kMaxStdinBytes = 2UL * 1024 * 1024 * 1024; // 2 GB
+
 static NSString *readStdinToTempFile(void) {
     NSMutableData *data = [[NSMutableData alloc] init];
     char buf[65536];
     size_t n;
     while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) {
         [data appendBytes:buf length:n];
+        if (data.length > kMaxStdinBytes) {
+            fprintf(stderr, "Error: Stdin input exceeds 2 GB limit\n");
+            [data release];
+            return nil;
+        }
     }
     if (data.length == 0) {
         [data release];
@@ -405,7 +479,9 @@ static NSString *readStdinToTempFile(void) {
     }
 
     NSString *tmpPath = [NSTemporaryDirectory()
-        stringByAppendingPathComponent:@"metalwhisper_stdin.wav"];
+        stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"metalwhisper_stdin_%d_%@.wav",
+                getpid(), [[NSUUID UUID] UUIDString]]];
     BOOL ok = [data writeToFile:tmpPath atomically:YES];
     [data release];
     return ok ? tmpPath : nil;
@@ -439,6 +515,27 @@ int main(int argc, const char *argv[]) {
             return 1;
         }
 
+        // Validate --task
+        if (![opts.task isEqualToString:@"transcribe"] &&
+            ![opts.task isEqualToString:@"translate"]) {
+            fprintf(stderr, "Error: --task must be 'transcribe' or 'translate'\n");
+            return 1;
+        }
+
+        // Validate --language
+        if (opts.language && !isKnownLanguageCode(opts.language)) {
+            fprintf(stderr, "Warning: Unknown language code '%s'. "
+                    "See https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes\n",
+                    [opts.language UTF8String]);
+            // Continue anyway — the transcriber may handle it or auto-detect will override
+        }
+
+        // Validate --vad-filter requires --vad-model
+        if (opts.vadFilter && !opts.vadModelPath) {
+            fprintf(stderr, "Error: --vad-filter requires --vad-model <path>\n");
+            return 1;
+        }
+
         // Handle stdin
         NSString *stdinTempPath = nil;
         if (opts.readStdin) {
@@ -448,6 +545,10 @@ int main(int argc, const char *argv[]) {
                 return 1;
             }
             [opts.inputFiles addObject:stdinTempPath];
+            // Register signal handlers to clean up temp file on interrupt
+            strlcpy(gStdinTempPathBuf, [stdinTempPath UTF8String], sizeof(gStdinTempPathBuf));
+            signal(SIGINT, signalHandler);
+            signal(SIGTERM, signalHandler);
         }
 
         // Validate required args
@@ -515,6 +616,12 @@ int main(int argc, const char *argv[]) {
         }
 
         int exitCode = 0;
+        BOOL multiFileJSON = (!opts.outputDir &&
+                              opts.outputFormat == OutputFormatJSON &&
+                              opts.inputFiles.count > 1);
+        if (multiFileJSON) {
+            fprintf(stdout, "[\n");
+        }
 
         // Process each file
         for (NSUInteger fi = 0; fi < opts.inputFiles.count; fi++) {
@@ -575,7 +682,7 @@ int main(int argc, const char *argv[]) {
                 continue;
             }
 
-            if (opts.verbose) {
+            if (opts.verbose && info) {
                 fprintf(stderr, "Detected language: %s (probability: %.2f)\n",
                     [info.language UTF8String], info.languageProbability);
                 fprintf(stderr, "Duration: %.1f seconds, %lu segments\n",
@@ -623,11 +730,14 @@ int main(int argc, const char *argv[]) {
                 }
             } else {
                 fprintf(stdout, "%s", [output UTF8String]);
-                // Add newline separator between files if multiple
-                if (opts.outputFormat == OutputFormatJSON && fi + 1 < opts.inputFiles.count) {
-                    fprintf(stdout, "\n");
+                if (multiFileJSON && fi + 1 < opts.inputFiles.count) {
+                    fprintf(stdout, ",\n");
                 }
             }
+        }
+
+        if (multiFileJSON) {
+            fprintf(stdout, "\n]\n");
         }
 
         // Cleanup
