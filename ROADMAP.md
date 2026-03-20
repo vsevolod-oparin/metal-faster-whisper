@@ -846,14 +846,58 @@ Reference outputs from Python faster-whisper stored alongside in `tests/data/ref
 | `perf_rtf_vs_python` | Same audio, same model | MetalWhisper RTF ≤ Python RTF |
 | `perf_first_segment_latency` | 30s audio | First segment arrives in < 2s |
 
-**Total E2E tests: 49** (in addition to ~90 unit tests per milestone = ~140 tests overall)
+**E2E tests implemented: 23** in `tests/test_e2e.mm`. All passing.
 
-### Test Infrastructure
+### Implemented E2E Tests (2026-03-20)
 
-- **Reference generation script:** Python script that runs faster-whisper on all test audio and dumps token sequences, timestamps, and text to `tests/data/reference/`
-- **Comparison tool:** Obj-C++ test helper that loads reference JSON and compares against MetalWhisper output (token-exact for greedy, WER for beam search)
-- **Memory profiler:** Shell wrapper that samples `ps -o rss` every 100ms during test execution
-- **CI matrix:** GitHub Actions on macOS-14 (M1) runner; manual benchmarks on M4
+**Section 1 — Basic Transcription (5):**
+- [x] `e2e_smoke_jfk_turbo` — JFK speech with turbo, text contains "fellow Americans"
+- [x] `e2e_smoke_jfk_tiny` — JFK with tiny model, shares 18+ words with turbo
+- [x] `e2e_long_form` — 60s physics lecture, 18 segments, monotonic timestamps
+- [x] `e2e_mp3_format` — MP3 44.1kHz stereo decoded and transcribed
+- [x] `e2e_multi_format_match` — FLAC vs M4A produce identical text
+
+**Section 2 — Language & Translation (4):**
+- [x] `e2e_detect_russian` — russian_60s.wav auto-detected as "ru" (prob 1.0), Cyrillic output
+- [x] `e2e_translate_russian` — translate task runs (turbo doesn't actually translate — model limitation)
+- [x] `e2e_mixed_language` — EN→RU: Latin in first segments, Cyrillic in later (per-segment multilingual working)
+- [x] `e2e_explicit_language` — explicit language="en" matches auto-detect exactly
+
+**Section 3 — Word Timestamps (3):**
+- [x] `e2e_word_timestamps_basic` — 22 words, all start≤end, text concatenation matches
+- [x] `e2e_word_timestamps_long` — 82 words across 9 segments in 30s audio
+- [x] `e2e_word_srt_output` — CLI word-level SRT has 22 entries
+
+**Section 4 — VAD (3):**
+- [x] `e2e_vad_silence_detection` — silence+speech+silence: speech detected in correct range
+- [x] `e2e_vad_music_only` — music-only: hallucinated "Thank you." (expected Whisper behavior)
+- [x] `e2e_vad_vs_no_vad` — with/without VAD both produce output
+
+**Section 5 — Output Formats (4):**
+- [x] `e2e_srt_format` — valid SRT with timestamps
+- [x] `e2e_vtt_format` — valid VTT with WEBVTT header
+- [x] `e2e_json_format` — parseable JSON with language/duration/segments
+- [x] `e2e_json_word_timestamps` — JSON words array with start/end/word/probability
+
+**Section 6 — Edge Cases (4):**
+- [x] `e2e_stereo_input` — stereo auto-downmixed to mono
+- [x] `e2e_callback_streaming` — callback count matches segment count
+- [x] `e2e_condition_on_previous` — both YES/NO produce valid output
+- [x] `e2e_async_api` — async completion handler fires on main queue
+
+### Test Audio Library (actual)
+
+| File | Duration | Language | Format | Purpose |
+|------|----------|----------|--------|---------|
+| jfk.flac | 11s | English | FLAC 44.1kHz stereo | Baseline speech |
+| jfk.m4a | 11s | English | AAC 44.1kHz | Multi-format comparison |
+| physicsworks.wav | 203s | English | WAV 16kHz mono | Long-form |
+| hotwords.mp3 | 4s | English | MP3 44.1kHz stereo | Lossy format |
+| stereo_diarization.wav | 5s | English | WAV 16kHz stereo | Stereo → mono |
+| silence_speech_silence.wav | 31s | English | WAV 16kHz mono | Generated: 10s silence + JFK + 10s silence |
+| russian_60s.wav | 60s | Russian | WAV 16kHz mono | Extracted from large.mp3 |
+| mixed_en_ru.wav | 41s | EN + RU | WAV 16kHz mono | Generated: JFK + Russian clip |
+| music_only.wav | 30s | None | WAV 16kHz mono | Instrumental music (no speech) |
 
 ---
 

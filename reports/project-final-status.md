@@ -27,13 +27,13 @@
 
 | Category | Lines |
 |----------|-------|
-| Framework source (src/) | 7,763 |
-| CLI tool (cli/) | 832 |
-| Tests (tests/) | 7,325 |
-| Example SwiftUI app | 807 |
-| Documentation (docs/) | 1,346 |
-| Reports | 2,677 |
-| **Total** | **~20,750** |
+| Framework source (src/) | ~7,800 |
+| CLI tool (cli/) | ~830 |
+| Tests (tests/) | ~8,500 |
+| Example SwiftUI app | ~810 |
+| Documentation (docs/) | ~1,350 |
+| Reports | ~3,500 |
+| **Total** | **~22,800** |
 
 ## Implementation Fidelity
 
@@ -44,6 +44,10 @@ Line-by-line comparison against Python faster-whisper found 22 divergences. **19
 | CRITICAL | 5 | 5 |
 | HIGH | 13 | 12 (1 deferred — performance only) |
 | LOW | 4 | 1 (3 intentional) |
+
+## E2E Test Suite (23 tests, all passing)
+
+Comprehensive end-to-end tests across 9 audio files (English, Russian, mixed, silence, music), 2 models (turbo + tiny), 4 output formats (text, SRT, VTT, JSON), with VAD, word timestamps, multilingual detection, streaming callbacks, and async API. See `reports/e2e-test-report.md`.
 
 Key fixes:
 - No-speech detection logic matched to Python
