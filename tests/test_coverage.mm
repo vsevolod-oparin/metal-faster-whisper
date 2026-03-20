@@ -14,6 +14,7 @@
 #import "MWVoiceActivityDetector.h"
 #import "MWModelManager.h"
 #import "MWConstants.h"
+#import "MWLiveTranscriber.h"
 #import "MWTestCommon.h"
 
 #include <cstdio>
@@ -1667,6 +1668,70 @@ static void test_model_unload_reload(void) {
 }
 
 // =============================================================================
+// Group 12: Live transcription / microphone API (M10.9)
+// =============================================================================
+
+static void test_m10_microphone(void) {
+    const char *name = "test_m10_microphone";
+
+    @autoreleasepool {
+        // Test the MWLiveTranscriber using the file-based entry point
+        // (no actual microphone required).
+        MWLiveTranscriber *live = [[MWLiveTranscriber alloc] initWithTranscriber:gTranscriber];
+        live.chunkDuration = 5.0;
+        live.language = @"en";
+
+        ASSERT_FMT(name, live.isCapturing == NO, @"Should not be capturing initially");
+
+        NSString *audioPath = [gDataDir stringByAppendingPathComponent:@"jfk.flac"];
+        NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
+
+        __block NSMutableArray *chunks = [[NSMutableArray alloc] init];
+        __block int callbackCount = 0;
+
+        NSError *err = nil;
+        BOOL ok = [live transcribeAudioFile:audioURL
+                                    handler:^(NSString *text, BOOL isFinal, BOOL *stop) {
+            callbackCount++;
+            if (text.length > 0) {
+                [chunks addObject:text];
+            }
+        }
+                                      error:&err];
+
+        ASSERT_TRUE(name, ok, fmtErr(@"transcribeAudioFile failed", err));
+        ASSERT_FMT(name, callbackCount > 0, @"Expected at least 1 callback, got %d", callbackCount);
+
+        // Concatenate all chunk texts
+        NSString *fullText = [[chunks componentsJoinedByString:@""] lowercaseString];
+        fprintf(stdout, "    [info] Chunks: %d, text: %.80s...\n",
+                callbackCount, [fullText UTF8String]);
+
+        ASSERT_FMT(name, [fullText containsString:@"country"] || [fullText containsString:@"americans"],
+                   @"Chunked transcription should contain JFK text, got: %@", fullText);
+
+        // Test early stop
+        __block int stopCount = 0;
+        BOOL ok2 = [live transcribeAudioFile:[NSURL fileURLWithPath:
+                        [gDataDir stringByAppendingPathComponent:@"physicsworks.wav"]]
+                                     handler:^(NSString *text, BOOL isFinal, BOOL *stop) {
+            stopCount++;
+            *stop = YES;  // stop after first chunk
+        }
+                                       error:nil];
+
+        ASSERT_TRUE(name, ok2, @"transcribeAudioFile with stop failed");
+        ASSERT_FMT(name, stopCount == 1,
+                   @"Expected 1 callback before stop, got %d", stopCount);
+
+        [chunks release];
+        [live release];
+
+        reportResult(name, YES, nil);
+    }
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -1765,8 +1830,12 @@ int main(int argc, const char *argv[]) {
         fprintf(stdout, "\n--- Group 10: WER on LibriSpeech (M11) ---\n");
         test_m11_wer_librispeech();
 
-        // ── Group 11: Model unload/reload (M12.11) — must be last (modifies shared model) ──
-        fprintf(stdout, "\n--- Group 11: Model unload/reload (M12.11) ---\n");
+        // ── Group 11: Live transcription / microphone (M10.9) ──
+        fprintf(stdout, "\n--- Group 11: Live transcription (M10.9) ---\n");
+        test_m10_microphone();
+
+        // ── Group 12: Model unload/reload (M12.11) — must be last (modifies shared model) ──
+        fprintf(stdout, "\n--- Group 12: Model unload/reload (M12.11) ---\n");
         test_model_unload_reload();
 
         // ── Summary ──

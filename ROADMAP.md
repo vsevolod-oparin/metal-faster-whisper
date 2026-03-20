@@ -526,7 +526,7 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 - [x] `test_m10_swift_basic`: Swift `import MetalWhisper`, load model, transcribe JFK — "country" and "americans" in text. Compiled via swiftc + framework
 - [x] `test_m10_swift_streaming`: Swift segmentHandler callback — callback count matches return count, texts match
 - [x] `test_m10_swift_cancel`: Swift stop flag — set *stop=YES after first segment, fewer segments returned than full (8 vs 51)
-- [ ] `test_m10_microphone`: Deferred — live capture (M10.9)
+- [x] `test_m10_microphone`: MWLiveTranscriber file-based chunked transcription — JFK split into 3 chunks (5s each), text correct, early stop works. Live AVAudioEngine capture also implemented
 
 **Exit criteria:** Typed options class, async API, umbrella header — DONE. Swift async/await and AsyncSequence deferred to Xcode/SPM project setup (M12).
 

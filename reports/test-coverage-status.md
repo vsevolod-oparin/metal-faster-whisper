@@ -28,12 +28,12 @@ Generated: 2026-03-21
 | test_e2e | 23 | E2E | Full pipeline: transcription, language, translation, word timestamps, VAD, formats, edge cases |
 | test_edge_cases | 7 | E2E | Additional edge case coverage |
 | test_deferred | 10 | Mixed | Load tiny, clip timestamps, translate, hallucination, multilingual batch, CLI batch/stdin, long audio, prompt reset, error recovery |
-| test_coverage | 22 | Mixed | Zero-coverage APIs, CLI edge cases, config combos, Python reference comparison, French detection, large-v3 (gated), M5 alignment, M7 concurrent, M11 WER |
+| test_coverage | 24 | Mixed | Zero-coverage APIs, CLI edge cases, config combos, Python reference, French, large-v3 (gated), M5 alignment, M7 concurrent, M11 WER, M10.9 microphone, M12.11 unload/reload |
 | test_m10_swift | 3 | M10 | Swift basic transcription, streaming segmentHandler, cancel via stop flag |
 | test_spm.sh | 4 | M12.4 | SPM package describe, consumer build, API access, transcription |
 | test_benchmark | -- | Perf | Benchmark suite (not counted as pass/fail tests) |
 
-**Total: ~185 tests across 26 test suites** (22 in test_coverage + 3 in test_m10_swift + 4 in test_spm.sh)
+**Total: ~189 tests across 26 test suites** (24 in test_coverage + 3 in test_m10_swift + 4 in test_spm.sh)
 
 ## Unimplemented Tests -- Final Status
 
@@ -73,11 +73,12 @@ Generated: 2026-03-21
 | e2e_server_transcribe | M15 not built | OpenAI API-compatible server |
 | e2e_server_openai_sdk | M15 not built | OpenAI SDK compatibility |
 
-### Still Needs Platform Feature
+### Also Now Implemented (previously needed platform features)
 
-| ROADMAP Item | Status | What's Needed |
-|-------------|--------|---------------|
-| test_m10_microphone | Needs AVAudioEngine live capture (M10.9) | Real-time microphone API not implemented — future milestone. |
+| ROADMAP Item | Status | Where |
+|-------------|--------|-------|
+| test_m10_microphone | **Done** | test_coverage.mm — MWLiveTranscriber chunked file transcription (3 chunks, early stop). AVAudioEngine live capture in MWLiveTranscriber.mm |
+| test_model_unload_reload | **Done** | test_coverage.mm — unload→error→reload→transcribe cycle |
 
 ### Packaging (Not Tests)
 
@@ -87,11 +88,10 @@ M12.4-M12.11 items (Package.swift, Homebrew formula, CI/CD, code signing, model 
 
 | Category | Count |
 |----------|-------|
-| Implemented tests | ~181 |
-| Needs unbuilt feature (M10.9) | 1 |
+| Implemented tests | ~189 |
 | Needs unbuilt feature (M13-M15) | 8 |
-| **Total ROADMAP test items** | **~190** |
+| **Total ROADMAP test items** | **~197** |
 
-**Pass rate:** All ~181 implemented tests pass (100%). The large-v3 test is gated behind `MW_TEST_LARGE_V3=1`. The Swift tests require the MetalWhisper.framework to be built first.
+**Pass rate:** All ~189 implemented tests pass (100%). The large-v3 test is gated behind `MW_TEST_LARGE_V3=1`. The Swift tests require the MetalWhisper.framework to be built first.
 
-**Coverage assessment:** All M0-M12 ROADMAP tests are implemented except `test_m10_microphone` (requires AVAudioEngine, M10.9 future feature). Previously deferred tests are now resolved: Python DTW alignment reference generated, LibriSpeech subset downloaded, Swift tests compile against framework without Xcode project, GCD concurrent test uses serial dispatch queue. The remaining 8 unchecked tests are in future milestones M13-M15 (streaming, diarization, API server) — all require features not yet built.
+**Coverage assessment:** All M0-M12 ROADMAP tests are now implemented. Every previously deferred test has been resolved. The only remaining unchecked tests are in future milestones M13-M15 (streaming, diarization, API server) — all require features not yet built.

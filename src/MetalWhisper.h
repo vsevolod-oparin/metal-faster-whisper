@@ -10,3 +10,4 @@
 #import "MWVoiceActivityDetector.h"
 #import "MWModelManager.h"
 #import "MWConstants.h"
+#import "MWLiveTranscriber.h"
