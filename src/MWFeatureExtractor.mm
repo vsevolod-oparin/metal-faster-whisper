@@ -360,7 +360,6 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
     std::vector<float> _melFilters;    // nMels * (nFFT/2+1), row-major
     std::vector<float> _hannWindow;    // nFFT periodic Hann
     BluesteinDFT *_bluesteinCtx;
-    NSUInteger _lastFrameCount;
 }
 
 // ── Initializers ────────────────────────────────────────────────────────────
@@ -384,8 +383,6 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
         _nFFT = nFFT;
         _hopLength = hopLength;
         _samplingRate = samplingRate;
-        _lastFrameCount = 0;
-
         // Generate mel filterbank (computed once, reused)
         _melFilters = generateMelFilters(nMels, nFFT, samplingRate);
 
@@ -426,10 +423,6 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────────
-
-- (NSUInteger)lastFrameCount {
-    return _lastFrameCount;
-}
 
 - (NSData *)melFilterbank {
     return [NSData dataWithBytes:_melFilters.data()
@@ -497,6 +490,7 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
 // ── Full pipeline ───────────────────────────────────────────────────────────
 
 - (nullable NSData *)computeMelSpectrogramFromAudio:(NSData *)audio
+                                         frameCount:(NSUInteger *)outFrameCount
                                               error:(NSError **)error {
     try {
         if (!audio || [audio length] == 0) {
@@ -576,7 +570,7 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
         float invScale = 1.0f / kMWLogScale;
         vDSP_vsmul(melSpec.data(), 1, &invScale, melSpec.data(), 1, (vDSP_Length)totalElements);
 
-        _lastFrameCount = nFrames;
+        if (outFrameCount) *outFrameCount = nFrames;
 
         return [NSData dataWithBytes:melSpec.data()
                               length:totalElements * sizeof(float)];

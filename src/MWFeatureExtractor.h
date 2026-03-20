@@ -8,7 +8,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// Python FeatureExtractor output exactly.
 ///
 /// Uses Accelerate (vDSP, vForce, BLAS) for all heavy computation.
-/// Thread-safe after initialization.
 @interface MWFeatureExtractor : NSObject
 
 /// Initialize with feature extraction parameters.
@@ -29,17 +28,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Compute log-mel spectrogram from float32 audio samples.
 /// @param audio NSData containing float32 audio samples at the configured sample rate
+/// @param outFrameCount Output: number of frames in the resulting spectrogram (may be NULL)
 /// @param error Error output on failure
 /// @return NSData containing float32 mel spectrogram in row-major order (nMels x nFrames).
 ///         Returns nil on failure.
 - (nullable NSData *)computeMelSpectrogramFromAudio:(NSData *)audio
+                                         frameCount:(NSUInteger * _Nullable)outFrameCount
                                               error:(NSError **)error;
 
 /// Number of mel bins.
 @property (nonatomic, readonly) NSUInteger nMels;
-
-/// Number of output frames for the last computed spectrogram.
-@property (nonatomic, readonly) NSUInteger lastFrameCount;
 
 /// Test helper: returns the mel filterbank matrix as float32 data (nMels x (nFFT/2+1), row-major).
 @property (nonatomic, readonly) NSData *melFilterbank;

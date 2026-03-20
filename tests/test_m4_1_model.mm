@@ -133,14 +133,14 @@ static void test_m4_1_feature_extractor_works(NSString *modelPath) {
     memset([silence mutableBytes], 0, numSamples * sizeof(float));
 
     error = nil;
-    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:silence error:&error];
+    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:silence frameCount:NULL error:&error];
     NSString *melMsg = [NSString stringWithFormat:@"Mel computation failed: %@",
                         [error localizedDescription]];
     ASSERT_TRUE(name, mel != nil, melMsg);
     ASSERT_TRUE(name, [mel length] > 0, @"Mel output is empty");
 
     fprintf(stdout, "    mel output bytes: %lu\n", (unsigned long)[mel length]);
-    fprintf(stdout, "    mel frames: %lu\n", (unsigned long)t.featureExtractor.lastFrameCount);
+    fprintf(stdout, "    mel frames: %lu\n", (unsigned long)([mel length] / (t.nMels * sizeof(float))));
 
     [t release];
     reportResult(name, YES, nil);

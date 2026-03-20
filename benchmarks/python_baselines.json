@@ -1,0 +1,35 @@
+{
+  "decode_physicsworks_wav_203s": {
+    "median_ms": 14.91,
+    "duration_s": 203.28,
+    "samples": 3252535
+  },
+  "decode_jfk_flac_11s": {
+    "median_ms": 15.97,
+    "duration_s": 11.0,
+    "samples": 176000
+  },
+  "decode_large_mp3_83min": {
+    "median_ms": 2096.64,
+    "duration_s": 4986.68,
+    "samples": 79786819
+  },
+  "mel_30s_80mels": {
+    "median_ms": 6.17,
+    "shape": [
+      80,
+      3001
+    ]
+  },
+  "mel_30s_128mels": {
+    "median_ms": 5.55,
+    "shape": [
+      128,
+      3001
+    ]
+  },
+  "_meta": {
+    "date": "2026-03-20 01:18",
+    "peak_rss_mb": 681.6
+  }
+}

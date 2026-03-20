@@ -360,16 +360,16 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 
         // Compute mel spectrogram for entire limited audio.
         NSError *melError = nil;
+        NSUInteger fullFrames = 0;
         NSData *fullMel = [_featureExtractor computeMelSpectrogramFromAudio:limitedAudio
-                                                                      error:&melError];
+                                                                frameCount:&fullFrames
+                                                                     error:&melError];
         if (!fullMel) {
             MWSetError(error, MWErrorCodeLanguageDetectionFailed,
                        [NSString stringWithFormat:@"Mel computation failed: %@",
                         [melError localizedDescription]]);
             return NO;
         }
-
-        NSUInteger fullFrames = _featureExtractor.lastFrameCount;
 
         // Track per-segment top language for majority vote.
         langVotes = [[NSMutableDictionary alloc] init];
@@ -442,7 +442,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             // Parse results: vector of (token_string, probability).
             // Token strings look like "<|en|>", "<|zh|>", etc.
             NSMutableArray<NSDictionary<NSString *, NSNumber *> *> *probs =
-                [[NSMutableArray alloc] initWithCapacity:results.size()];
+                [NSMutableArray arrayWithCapacity:results.size()];
 
             NSString *topLang = nil;
             float topProb = -1.0f;
@@ -477,7 +477,6 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             }];
 
             lastProbs = [[probs copy] autorelease];
-            [probs release];
 
             // Early stop if top language exceeds threshold.
             if (topProb > threshold) {
@@ -1052,16 +1051,18 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             std::vector<size_t> numFramesVec = {numFrames};
 
             // Call CT2 align on CPU to avoid MPS LayerNorm limitations
-            // with non-iterative decoder execution.
-            if (!_whisperCPU) {
-                const std::string path = [_modelPath UTF8String];
-                _whisperCPU = std::make_unique<ctranslate2::models::Whisper>(
-                    path,
-                    ctranslate2::Device::CPU,
-                    ctranslate2::ComputeType::FLOAT32,
-                    std::vector<int>{0},
-                    false
-                );
+            // with non-iterative decoder execution. Thread-safe lazy init.
+            @synchronized (self) {
+                if (!_whisperCPU) {
+                    const std::string path = [_modelPath UTF8String];
+                    _whisperCPU = std::make_unique<ctranslate2::models::Whisper>(
+                        path,
+                        ctranslate2::Device::CPU,
+                        ctranslate2::ComputeType::FLOAT32,
+                        std::vector<int>{0},
+                        false
+                    );
+                }
             }
 
             auto futures = _whisperCPU->align(encView, startSeq, textTokensVec, numFramesVec,
@@ -1146,11 +1147,18 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                 float endTime = 0.0f;
                 if (startBound < jumpTimes.size()) {
                     startTime = jumpTimes[startBound];
+                } else if (!jumpTimes.empty()) {
+                    // Fallback: use end of previous word or last known jump
+                    startTime = jumpTimes.back();
                 }
                 if (endBound < jumpTimes.size()) {
                     endTime = jumpTimes[endBound];
                 } else if (!jumpTimes.empty()) {
                     endTime = jumpTimes.back();
+                }
+                // Ensure start <= end
+                if (startTime > endTime) {
+                    startTime = endTime;
                 }
 
                 // word probability = mean(text_token_probs[startBound:endBound])
@@ -1419,7 +1427,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 
     // ── Step 1: Compute mel spectrogram for entire audio ─────────────────────
     NSError *melError = nil;
-    NSData *fullMel = [_featureExtractor computeMelSpectrogramFromAudio:audio error:&melError];
+    NSUInteger totalFrames = 0;
+    NSData *fullMel = [_featureExtractor computeMelSpectrogramFromAudio:audio
+                                                            frameCount:&totalFrames
+                                                                 error:&melError];
     if (!fullMel) {
         MWSetError(error, MWErrorCodeTranscribeFailed,
                    [NSString stringWithFormat:@"Mel computation failed: %@",
@@ -1427,7 +1438,6 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         return nil;
     }
     NSUInteger nMels = self.nMels;
-    NSUInteger totalFrames = _featureExtractor.lastFrameCount;
     NSUInteger segmentSize = kMWDefaultChunkFrames;  // 3000 frames = 30s
     float segmentDuration = (float)segmentSize / (float)_framesPerSecond;
 

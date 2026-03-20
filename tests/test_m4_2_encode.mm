@@ -37,11 +37,11 @@ static void test_m4_2_encode_shape(NSString *modelPath) {
 
     // Compute mel spectrogram.
     error = nil;
-    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:silence error:&error];
+    NSUInteger nFrames = 0;
+    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:silence frameCount:&nFrames error:&error];
     NSString *melMsg = fmtErr(@"Mel computation failed", error);
     ASSERT_TRUE(name, mel != nil, melMsg);
 
-    NSUInteger nFrames = t.featureExtractor.lastFrameCount;
     NSUInteger nMels = t.nMels;
     fprintf(stdout, "    mel: nMels=%lu, nFrames=%lu\n", (unsigned long)nMels, (unsigned long)nFrames);
 
@@ -88,11 +88,11 @@ static void test_m4_2_encode_real_audio(NSString *modelPath, NSString *dataDir) 
 
     // Compute mel.
     error = nil;
-    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:audio30s error:&error];
+    NSUInteger nFrames = 0;
+    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:audio30s frameCount:&nFrames error:&error];
     NSString *melMsg = fmtErr(@"Mel failed", error);
     ASSERT_TRUE(name, mel != nil, melMsg);
 
-    NSUInteger nFrames = t.featureExtractor.lastFrameCount;
     NSUInteger nMels = t.nMels;
     NSUInteger targetFrames = kMWDefaultChunkFrames;
 

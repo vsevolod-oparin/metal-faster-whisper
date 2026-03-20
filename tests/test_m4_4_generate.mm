@@ -13,10 +13,10 @@ static NSData *encodeFirst30s(MWTranscriber *t, NSData *audio, NSError **error) 
     NSUInteger samples30s = kMWTargetSampleRate * 30;
     NSData *audio30s = [MWAudioDecoder padOrTrimAudio:audio toSampleCount:samples30s];
 
-    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:audio30s error:error];
+    NSUInteger nFrames = 0;
+    NSData *mel = [t.featureExtractor computeMelSpectrogramFromAudio:audio30s frameCount:&nFrames error:error];
     if (!mel) return nil;
 
-    NSUInteger nFrames = t.featureExtractor.lastFrameCount;
     NSUInteger nMels = t.nMels;
     NSUInteger targetFrames = kMWDefaultChunkFrames;
 

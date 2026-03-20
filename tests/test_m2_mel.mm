@@ -209,7 +209,8 @@ static void test_m2_stft(void) {
         }
 
         NSError *error = nil;
-        NSData *melResult = [fe computeMelSpectrogramFromAudio:signalData error:&error];
+        NSUInteger melFrameCount = 0;
+        NSData *melResult = [fe computeMelSpectrogramFromAudio:signalData frameCount:&melFrameCount error:&error];
         if (!melResult) {
             reportResult("test_m2_stft", NO,
                          [NSString stringWithFormat:@"Pipeline failed: %@",
@@ -220,7 +221,7 @@ static void test_m2_stft(void) {
 
         // Our pipeline produces nFramesRef+1 frames (due to 160-zero padding).
         // Verify this expectation.
-        NSUInteger actualFrames = [fe lastFrameCount];
+        NSUInteger actualFrames = melFrameCount;
         NSUInteger expectedPipelineFrames = nFramesRef + 1;
         if (actualFrames != expectedPipelineFrames) {
             reportResult("test_m2_stft", NO,
@@ -341,7 +342,8 @@ static void test_m2_full_pipeline(void) {
         }
 
         NSError *error = nil;
-        NSData *melResult = [fe computeMelSpectrogramFromAudio:audio30s error:&error];
+        NSUInteger melFrameCount = 0;
+        NSData *melResult = [fe computeMelSpectrogramFromAudio:audio30s frameCount:&melFrameCount error:&error];
         if (!melResult) {
             reportResult("test_m2_full_pipeline", NO,
                          [NSString stringWithFormat:@"Pipeline failed: %@",
@@ -351,7 +353,7 @@ static void test_m2_full_pipeline(void) {
         }
 
         // Check shape
-        NSUInteger actualFrames = [fe lastFrameCount];
+        NSUInteger actualFrames = melFrameCount;
         NSUInteger actualMels = [fe nMels];
         if (actualMels != expectedMels || actualFrames != expectedFrames) {
             reportResult("test_m2_full_pipeline", NO,
@@ -409,7 +411,8 @@ static void test_m2_full_pipeline_128(void) {
         }
 
         NSError *error = nil;
-        NSData *melResult = [fe computeMelSpectrogramFromAudio:audio30s error:&error];
+        NSUInteger melFrameCount = 0;
+        NSData *melResult = [fe computeMelSpectrogramFromAudio:audio30s frameCount:&melFrameCount error:&error];
         if (!melResult) {
             reportResult("test_m2_full_pipeline_128", NO,
                          [NSString stringWithFormat:@"Pipeline failed: %@",
@@ -418,7 +421,7 @@ static void test_m2_full_pipeline_128(void) {
             return;
         }
 
-        NSUInteger actualFrames = [fe lastFrameCount];
+        NSUInteger actualFrames = melFrameCount;
         NSUInteger actualMels = [fe nMels];
         if (actualMels != expectedMels || actualFrames != expectedFrames) {
             reportResult("test_m2_full_pipeline_128", NO,
@@ -471,7 +474,8 @@ static void test_m2_short_audio(void) {
         }
 
         NSError *error = nil;
-        NSData *melResult = [fe computeMelSpectrogramFromAudio:audio5s error:&error];
+        NSUInteger melFrameCount = 0;
+        NSData *melResult = [fe computeMelSpectrogramFromAudio:audio5s frameCount:&melFrameCount error:&error];
         if (!melResult) {
             reportResult("test_m2_short_audio", NO,
                          [NSString stringWithFormat:@"Pipeline failed: %@",
@@ -480,7 +484,7 @@ static void test_m2_short_audio(void) {
             return;
         }
 
-        NSUInteger actualFrames = [fe lastFrameCount];
+        NSUInteger actualFrames = melFrameCount;
         NSUInteger actualMels = [fe nMels];
         if (actualMels != expectedMels || actualFrames != expectedFrames) {
             reportResult("test_m2_short_audio", NO,
@@ -537,7 +541,7 @@ static void test_m2_performance(void) {
 
         // Warm-up run
         NSError *error = nil;
-        [fe computeMelSpectrogramFromAudio:audio30s error:&error];
+        [fe computeMelSpectrogramFromAudio:audio30s frameCount:NULL error:&error];
 
         // Timed run (average of 5 iterations)
         static const int kIterations = 5;
@@ -545,7 +549,7 @@ static void test_m2_performance(void) {
 
         for (int i = 0; i < kIterations; i++) {
             @autoreleasepool {
-                [fe computeMelSpectrogramFromAudio:audio30s error:&error];
+                [fe computeMelSpectrogramFromAudio:audio30s frameCount:NULL error:&error];
             }
         }
 
