@@ -1,0 +1,51 @@
+name: TranscriberApp
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  bundleIdPrefix: com.metalwhisper
+
+settings:
+  base:
+    SWIFT_OBJC_BRIDGING_HEADER: MetalWhisper-Bridging-Header.h
+    HEADER_SEARCH_PATHS:
+      - $(SRCROOT)/../../src
+    LIBRARY_SEARCH_PATHS:
+      - $(SRCROOT)/../../build
+      - $(SRCROOT)/../../third_party/onnxruntime-osx-arm64-1.21.0/lib
+      - $(SRCROOT)/../../../CTranslate2/build/install/lib
+    OTHER_LDFLAGS:
+      - -lMetalWhisper
+      - -lctranslate2
+      - -lonnxruntime
+      - -framework Foundation
+      - -framework AVFoundation
+      - -framework Metal
+      - -framework Accelerate
+    LD_RUNPATH_SEARCH_PATHS:
+      - "@executable_path/../Frameworks"
+      - "$(SRCROOT)/../../build"
+      - "$(SRCROOT)/../../build/install/lib"
+      - "$(SRCROOT)/../../third_party/onnxruntime-osx-arm64-1.21.0/lib"
+      - "$(SRCROOT)/../../../CTranslate2/build/install/lib"
+
+targets:
+  TranscriberApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: .
+        excludes:
+          - project.yml
+          - README.md
+          - "*.xcodeproj"
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: TranscriberApp
+        CFBundleDisplayName: MetalWhisper Transcriber
+        CFBundleIdentifier: com.metalwhisper.transcriber
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.1.0"
+        LSMinimumSystemVersion: "14.0"
+        NSMicrophoneUsageDescription: "MetalWhisper needs microphone access for live transcription."
