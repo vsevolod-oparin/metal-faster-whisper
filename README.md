@@ -15,14 +15,24 @@ MetalWhisper is a complete port of [faster-whisper](https://github.com/SYSTRAN/f
 ## Quick Start
 
 ```bash
-# Build
-mkdir build && cd build
+# 1. Clone and set up dependencies
+git clone <repo-url> metal-faster-whisper
+cd metal-faster-whisper
+./scripts/setup_dependencies.sh
+
+# 2. Build
+mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(sysctl -n hw.logicalcpu)
 
-# Download a model and transcribe
+# 3. Download a model and transcribe
 ./metalwhisper audio.mp3 --model turbo
 ```
+
+The setup script downloads:
+- **CTranslate2** (Metal/MPS build) — pre-built dylib + headers
+- **ONNX Runtime** (arm64) — for Silero VAD
+- **Silero VAD** model — voice activity detection
 
 ## CLI Usage
 

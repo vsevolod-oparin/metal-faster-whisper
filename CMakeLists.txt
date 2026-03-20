@@ -10,9 +10,15 @@ set(CMAKE_OBJCXX_STANDARD 17)
 set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 
 # ── Find CTranslate2 ────────────────────────────────────────────────────────
-# Default: look in the sibling CTranslate2 build/install directory.
+# Default: look in third_party/ctranslate2-mps (from scripts/setup_dependencies.sh).
+# Fallback: sibling CTranslate2/build/install (local build).
 # Override with: cmake -DCT2_INSTALL_PREFIX=/your/path ..
-set(CT2_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../CTranslate2/build/install"
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ctranslate2-mps/lib/libctranslate2.dylib")
+    set(_CT2_DEFAULT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ctranslate2-mps")
+else()
+    set(_CT2_DEFAULT "${CMAKE_CURRENT_SOURCE_DIR}/../CTranslate2/build/install")
+endif()
+set(CT2_INSTALL_PREFIX "${_CT2_DEFAULT}"
     CACHE PATH "Path to CTranslate2 install prefix")
 list(APPEND CMAKE_PREFIX_PATH "${CT2_INSTALL_PREFIX}")
 
