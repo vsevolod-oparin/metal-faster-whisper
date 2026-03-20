@@ -1,0 +1,4 @@
+module MetalWhisper {
+    header "MetalWhisper.h"
+    export *
+}

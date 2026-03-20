@@ -1,83 +1,78 @@
-# MetalWhisperApp
+# TranscriberApp
 
-A SwiftUI macOS demo application for MetalWhisper -- native Whisper transcription on Apple Silicon via Metal.
+A SwiftUI macOS demo application for MetalWhisper — native Whisper transcription on Apple Silicon via Metal.
 
-## Setup Instructions
+## Quick Setup (xcodegen)
+
+```bash
+cd examples/TranscriberApp
+xcodegen generate
+xcodebuild -scheme TranscriberApp -configuration Debug build
+```
+
+The `project.yml` is pre-configured with all header/library search paths.
+
+## Manual Xcode Setup
 
 ### Prerequisites
 
 - macOS 14.0+ (Sonoma or later)
 - Xcode 15.0+
-- MetalWhisper framework built (run `cmake --build build/` from the project root)
+- MetalWhisper built (`./scripts/setup_dependencies.sh && cd build && cmake .. && make`)
 
-### Project Setup
+### Steps
 
-1. **Create the Xcode project:**
-   Open Xcode -> File -> New -> Project -> macOS -> App (SwiftUI).
-   Name it `MetalWhisperApp`. Choose Swift as the language and SwiftUI for the interface.
+1. Open Xcode → File → New → Project → macOS → App (SwiftUI)
+2. Add the `.swift` files and `MetalWhisper-Bridging-Header.h` to the project
+3. Build Settings:
+   - **Objective-C Bridging Header**: `MetalWhisper-Bridging-Header.h`
+   - **Header Search Paths**: `$(SRCROOT)/../../src`
+   - **Library Search Paths**: `$(SRCROOT)/../../build`, `$(SRCROOT)/../../third_party/ctranslate2-mps/lib`, `$(SRCROOT)/../../third_party/onnxruntime-osx-arm64-1.21.0/lib`
+   - **Other Linker Flags**: `-lMetalWhisper -lctranslate2 -lonnxruntime`
+   - **Runpath Search Paths**: `@executable_path/../Frameworks` plus the library paths above
+4. Build and run
 
-2. **Add source files:**
-   Drag the following files from `app/MetalWhisperApp/` into the Xcode project navigator:
-   - `MetalWhisperApp.swift` (replace the generated one)
-   - `ContentView.swift` (replace the generated one)
-   - `TranscriptionViewModel.swift`
-   - `SegmentItem.swift`
-   - `ExportUtils.swift`
-   - `MetalWhisper-Bridging-Header.h`
+## Using MetalWhisper from Pure Swift (no Xcode project)
 
-3. **Configure the bridging header:**
-   In Build Settings, search for "Objective-C Bridging Header" and set it to:
-   ```
-   $(SRCROOT)/MetalWhisper-Bridging-Header.h
-   ```
-   (Adjust the path if you placed the header in a subdirectory.)
+You don't need Xcode or a bridging header. Just `swiftc`:
 
-4. **Add Header Search Paths:**
-   In Build Settings -> Header Search Paths, add:
-   ```
-   $(PROJECT_DIR)/../../src
-   ```
-   This lets the bridging header find `MetalWhisper.h` and all framework headers.
+```swift
+// my_transcriber.swift
+import Foundation
 
-5. **Add Library Search Paths:**
-   In Build Settings -> Library Search Paths, add:
-   ```
-   $(PROJECT_DIR)/../../build
-   ```
+let transcriber = try MWTranscriber(modelPath: "/path/to/model")
+let opts = MWTranscriptionOptions.defaults()
+opts.wordTimestamps = true
 
-6. **Link against the framework libraries:**
-   In Build Phases -> Link Binary With Libraries, add:
-   - `libMetalWhisper.dylib`
-   - `libctranslate2.dylib`
-   - `libonnxruntime.dylib`
+let url = URL(fileURLWithPath: "audio.mp3")
+var info: MWTranscriptionInfo?
+let segments = try transcriber.transcribeURL(
+    url, language: nil, task: "transcribe",
+    typedOptions: opts, segmentHandler: nil, info: &info)
 
-   You may need to click "Add Other..." and navigate to the `build/` directory.
+for seg in segments {
+    print("[\(String(format: "%.2f", seg.start))-\(String(format: "%.2f", seg.end))] \(seg.text)")
+}
+```
 
-7. **Set the runtime library path (rpath):**
-   In Build Settings -> Runpath Search Paths, add:
-   ```
-   @executable_path/../Frameworks
-   ```
-   For development, you may also want to add the absolute path to `build/`.
+Compile:
+```bash
+swiftc -import-objc-header path/to/src/MetalWhisper.h \
+  -I path/to/src -L path/to/build -lMetalWhisper \
+  my_transcriber.swift -o my_transcriber
+```
 
-8. **Copy dylibs into the app bundle (optional but recommended):**
-   Add a "Copy Files" build phase targeting "Frameworks" and include the three `.dylib` files.
+## Features
 
-9. **Build and run.**
+- **Model selection** — dropdown with all Whisper model sizes (auto-downloaded)
+- **Language picker** — 30 languages + auto-detect
+- **Task selection** — Transcribe (keep original language) or Translate to English
+- **Drag & drop** — drop audio files onto the window
+- **Streaming output** — segments appear as they're transcribed
+- **Word timestamps** — colored badges show per-word timing and confidence
+- **VAD filter** — skip non-speech regions
+- **Export** — save as TXT, SRT, or VTT via native save dialog
 
-### Usage
+## Supported Audio Formats
 
-1. Select a model size from the dropdown (turbo is recommended for speed).
-2. Click the download/load button to initialize the model.
-3. Drop an audio file onto the drop zone, or click "Choose File..." to browse.
-4. Watch transcription segments appear in real time.
-5. Use the export buttons to save as TXT, SRT, or VTT.
-
-### Options
-
-- **Word timestamps**: When enabled, the transcriber produces word-level timing. Words appear as colored badges below each segment, with color indicating confidence (green = high, orange = medium, red = low).
-- **VAD filter**: Applies Silero voice activity detection to skip non-speech regions, which can improve accuracy and speed on files with long silences.
-
-### Supported Audio Formats
-
-WAV, MP3, M4A, FLAC, OGG, AAC, AIFF, MP4, WebM -- any format supported by the MetalWhisper audio decoder.
+WAV, MP3, M4A, FLAC, AAC, AIFF, CAF — any format supported by AVFoundation.

@@ -36,6 +36,13 @@ models/*.mlmodelc/
 # Test reference data (large binary files, regenerate with tests/generate_*.py)
 tests/data/reference/*.raw
 
+# Compiled example binaries
+examples/swift-cli/transcribe
+examples/swift-cli/transcribe_fw
+
+# Swift test binary
+tests/test_swift
+
 # Temporary files
 tmp/*
 !tmp/.gitkeep

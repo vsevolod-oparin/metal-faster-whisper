@@ -150,6 +150,10 @@ class TranscriptionViewModel: ObservableObject {
         let options = MWTranscriptionOptions.defaults()
         options.wordTimestamps = wordTimestamps
         options.vadFilter = vadFilter
+        // Enable per-segment language re-detection when language is auto
+        if language == "auto" {
+            options.multilingual = true
+        }
 
         let fileURL = url
 
