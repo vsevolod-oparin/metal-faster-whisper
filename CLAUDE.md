@@ -33,6 +33,195 @@ Document it honestly. If a test reveals a limitation (e.g., a backend doesn't su
 
 ---
 
+## Testing Rules
+
+### Adversarial Mindset
+
+When writing tests, think like an attacker, not a developer. The goal
+of a test is to BREAK the code, not to confirm it works.
+
+For every function under test, ask:
+1. What happens with nil/null/empty input?
+2. What happens at zero? At one? At INT_MAX/SIZE_MAX?
+3. What happens with malformed/truncated/oversized data?
+4. What happens if called twice? Called concurrently? Called after release?
+5. What error paths exist and are they all exercised?
+
+Never write only happy-path tests. Every test file must include at
+least as many adversarial/negative tests as positive tests.
+
+### Edge Case Checklist (ZOMBIES)
+
+Before considering a test suite complete, verify coverage of:
+
+**Z - Zero:**
+- Empty collections, zero-length data, zero count, zero duration
+- nil/null for every pointer parameter
+- Empty string ""
+
+**O - One:**
+- Single element/byte/sample/character
+- Single iteration of any loop
+
+**M - Many:**
+- Large inputs (1M+ elements where feasible without slowing tests)
+- Enough iterations to expose accumulation bugs (autoreleasepool, memory)
+
+**B - Boundary:**
+- Off-by-one: N-1, N, N+1 for every boundary N
+- Integer limits: INT_MIN, INT_MAX, UINT_MAX, SIZE_MAX
+- Float specials: NaN, +Inf, -Inf, -0.0, FLT_EPSILON, denormalized
+- Buffer boundaries: exactly fits, one byte short, one byte over
+- Type boundaries: signed/unsigned crossover, 32/64 bit limits
+
+**I - Interface:**
+- Every documented precondition violated
+- Every documented error code triggered
+- Every optional parameter as nil
+- Every enum value including invalid cast values
+
+**E - Exception/Error:**
+- Every NSError** path exercised
+- Error codes verified (not just error != nil)
+- Error recovery: can the object still be used after an error?
+
+**S - Simple scenarios first:**
+- Build complexity incrementally
+- If the simple case fails, do not add complexity
+
+### Speed Requirements
+
+**Unit tests MUST complete in < 1 second each.** No exceptions.
+
+To achieve this:
+- No model loading in unit tests (pass pre-loaded model or test without)
+- No file I/O in pure logic tests (use in-memory data)
+- No sleep, polling, or arbitrary waits
+- No GPU computation in pure logic tests
+- Minimal object construction -- only what the test needs
+
+**Integration tests SHOULD complete in < 30 seconds each.**
+- Share model loading across tests (load once in main)
+- Use shortest audio that exercises the code path
+- Prefer synthetic data over real audio files
+
+**Slow tests (> 30s) require explicit justification:**
+- End-to-end accuracy validation
+- Performance benchmarks
+- Memory leak detection over many iterations
+- Concurrency stress tests
+
+### Test Organization
+
+Each test file tests ONE area of functionality. No monolithic test files.
+
+Name tests to describe behavior and expected outcome:
+```
+test_{what}_{condition}_{expected_result}
+Example: test_encode_zero_frames_returns_nil_error
+```
+
+Separate tests by speed tier:
+- Tier 1 (< 5s total): No model, no GPU. Run on every build.
+- Tier 2 (< 30s each): Needs model. Run on every commit.
+- Tier 3 (minutes): Full pipeline. Run nightly or on PR.
+
+### Test Structure
+
+Use Arrange-Act-Assert with minimal Arrange:
+```objc
+static void test_example(SomeObject *obj) {
+    // ARRANGE: only what this test needs, nothing more
+    NSData *input = [NSData dataWithBytes:data length:len];
+
+    // ACT: one action
+    NSError *error = nil;
+    NSData *result = [obj process:input error:&error];
+
+    // ASSERT: focused, specific assertions
+    ASSERT_TRUE(name, result != nil, fmtErr(@"failed", error));
+    ASSERT_EQ(name, [result length], expectedLength);
+}
+```
+
+Each test function tests ONE behavior. Do not combine multiple
+behaviors in one test.
+
+### Anti-Patterns to Avoid
+
+**Tautological test:** Never compute expected values using the same
+code being tested.
+
+**Line hitter:** Every test MUST have at least one meaningful assertion.
+A test that calls code without checking the result is not a test.
+
+**Over-mocking:** If more than 2 mocks/stubs are needed, you are
+probably testing the wrong thing. Prefer fakes with real behavior.
+
+**Inspector:** Do not access private ivars or use runtime introspection
+in tests. Test through public API only.
+
+**Flaky test patterns:**
+- Floating point comparison with == (use epsilon)
+- Depending on hash map iteration order
+- Depending on timing (use deterministic waits)
+- Depending on filesystem state from other tests
+- Using unseeded random values (always seed and log)
+
+**Happy path only:** If a test file has only positive tests, it is
+incomplete. Add adversarial tests before declaring done.
+
+### Floating Point Testing Rules
+
+Never compare floats with ==. Always use epsilon:
+```objc
+BOOL closeEnough = fabs(actual - expected) < 1e-5f;
+ASSERT_TRUE(name, closeEnough, @"float mismatch");
+```
+
+Always test with: NaN, +Inf, -Inf, -0.0, very small
+(denormalized), very large values.
+
+### MRC Testing Rules
+
+Every test that allocates objects must release them on ALL paths
+including early returns.
+
+Wrap test loops in @autoreleasepool:
+```objc
+for (int i = 0; i < N; i++) {
+    @autoreleasepool {
+        // test body
+    }
+}
+```
+
+For leak detection tests: measure RSS before and after, assert
+delta < threshold.
+
+### Concurrency Testing Rules
+
+Never test concurrency with sleep + check. Use:
+- dispatch_semaphore_wait
+- dispatch_group_wait
+- Completion handlers
+
+When testing thread safety, run the concurrent operation at least
+100 times to increase probability of exposing races.
+
+Run tests under Thread Sanitizer (-fsanitize=thread) in CI.
+
+### Sanitizer Requirements
+
+Tests MUST pass under all three sanitizers (separate configurations):
+- Address Sanitizer: memory corruption, use-after-free, buffer overflow
+- Thread Sanitizer: data races, lock inversions
+- Undefined Behavior Sanitizer: signed overflow, null deref, misalignment
+
+Do not suppress sanitizer findings without documenting why.
+
+---
+
 ## Anti-Patterns to Avoid
 
 This project uses Obj-C++, C++17, Metal/MPS, and manual memory management (no ARC). Every code change must avoid these patterns. When reviewing code — your own or an agent's — check against this list.
