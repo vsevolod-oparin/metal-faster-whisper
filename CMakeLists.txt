@@ -38,6 +38,7 @@ find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
 find_library(METAL_FRAMEWORK Metal REQUIRED)
 find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
 find_library(AVFOUNDATION_FRAMEWORK AVFoundation REQUIRED)
+find_library(COREMEDIA_FRAMEWORK CoreMedia REQUIRED)
 find_library(COMPRESSION_LIB compression REQUIRED)
 
 # ── MetalWhisper shared library ──────────────────────────────────────────────
@@ -61,6 +62,7 @@ target_link_libraries(MetalWhisper
         ${METAL_FRAMEWORK}
         ${ACCELERATE_FRAMEWORK}
         ${AVFOUNDATION_FRAMEWORK}
+        ${COREMEDIA_FRAMEWORK}
         ${COMPRESSION_LIB}
         ${ONNXRUNTIME_LIB}
 )

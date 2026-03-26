@@ -165,7 +165,95 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
     return result;
 }
 
+// ── AVAssetReader fallback for video containers ───────────────────────────────
+// Used when AVAudioFile rejects the file type (e.g. mp4, mov, mkv).
+// Extracts the first audio track, resamples to 16 kHz mono float32.
+static NSData *MWDecodeAudioAsset(NSURL *url, NSError **error) {
+    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
+    if (!asset) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Failed to open asset");
+        return nil;
+    }
+
+    NSArray<AVAssetTrack *> *audioTracks = [asset tracksWithMediaType:AVMediaTypeAudio];
+    if (audioTracks.count == 0) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"No audio track found in file");
+        return nil;
+    }
+    AVAssetTrack *audioTrack = audioTracks[0];
+
+    // Ask AVAssetReaderTrackOutput to deliver linear PCM float32 at 16 kHz mono.
+    NSDictionary *outputSettings = @{
+        AVFormatIDKey:             @(kAudioFormatLinearPCM),
+        AVSampleRateKey:           @((double)kMWTargetSampleRate),
+        AVNumberOfChannelsKey:     @((int)kMWTargetChannels),
+        AVLinearPCMBitDepthKey:    @(32),
+        AVLinearPCMIsFloatKey:     @YES,
+        AVLinearPCMIsNonInterleaved: @NO,
+        AVLinearPCMIsBigEndianKey: @NO,
+    };
+
+    NSError *readerError = nil;
+    AVAssetReader *reader = [AVAssetReader assetReaderWithAsset:asset error:&readerError];
+    if (!reader) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Failed to create asset reader: %@",
+                    [readerError localizedDescription]]);
+        return nil;
+    }
+
+    AVAssetReaderTrackOutput *trackOutput =
+        [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack
+                                                   outputSettings:outputSettings];
+    trackOutput.alwaysCopiesSampleData = NO;
+    [reader addOutput:trackOutput];
+
+    if (![reader startReading]) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Asset reader failed to start: %@",
+                    [[reader error] localizedDescription]]);
+        return nil;
+    }
+
+    NSMutableData *accumulated = [[NSMutableData alloc] init];
+
+    while (reader.status == AVAssetReaderStatusReading) {
+        @autoreleasepool {
+            CMSampleBufferRef sampleBuffer = [trackOutput copyNextSampleBuffer];
+            if (!sampleBuffer) break;
+
+            CMBlockBufferRef blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer);
+            if (blockBuffer) {
+                size_t totalLength = 0;
+                char *dataPointer = NULL;
+                OSStatus status = CMBlockBufferGetDataPointer(blockBuffer, 0, NULL,
+                                                              &totalLength, &dataPointer);
+                if (status == noErr && dataPointer && totalLength > 0) {
+                    [accumulated appendBytes:dataPointer length:totalLength];
+                }
+            }
+            CFRelease(sampleBuffer);
+        }
+    }
+
+    if (reader.status == AVAssetReaderStatusFailed) {
+        [accumulated release];
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Asset reader error: %@",
+                    [[reader error] localizedDescription]]);
+        return nil;
+    }
+
+    NSData *result = [accumulated autorelease];
+    return result;
+}
+
 // ── MWAudioDecoder implementation ────────────────────────────────────────────
+
+// OSStatus for kAudioFileUnsupportedFileTypeError ('typ?')
+static const NSInteger kMWAudioFileUnsupportedTypeCode = 1954115647;
 
 @implementation MWAudioDecoder
 
@@ -178,9 +266,15 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
             return nil;
         }
 
-        AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:url error:error];
+        NSError *audioFileError = nil;
+        AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:url error:&audioFileError];
         if (!audioFile) {
-            // error is already set by AVAudioFile
+            // For unsupported audio file types (e.g. video containers like mp4/mov),
+            // fall back to AVAssetReader which can extract audio from video tracks.
+            if (audioFileError.code == kMWAudioFileUnsupportedTypeCode) {
+                return MWDecodeAudioAsset(url, error);
+            }
+            if (error) *error = audioFileError;
             return nil;
         }
 
