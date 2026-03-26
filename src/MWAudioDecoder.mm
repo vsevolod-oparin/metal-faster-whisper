@@ -9,6 +9,22 @@
 #include <stdexcept>
 #include <climits>
 
+// ── ffmpeg path discovery ─────────────────────────────────────────────────────
+static NSString *MWFindFFmpeg(void) {
+    // Common install locations (Homebrew arm64, Homebrew x86, MacPorts, system PATH)
+    NSArray<NSString *> *candidates = @[
+        @"/opt/homebrew/bin/ffmpeg",
+        @"/usr/local/bin/ffmpeg",
+        @"/opt/local/bin/ffmpeg",
+        @"/usr/bin/ffmpeg",
+    ];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *path in candidates) {
+        if ([fm isExecutableFileAtPath:path]) return path;
+    }
+    return nil;
+}
+
 // ── Helper: decode from an AVAudioFile ───────────────────────────────────────
 static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
     AVAudioFormat *sourceFormat = [audioFile processingFormat];
@@ -165,6 +181,74 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
     return result;
 }
 
+// ── ffmpeg fallback for containers AVFoundation can't read (e.g. webm) ────────
+// Converts input to raw float32 PCM at 16 kHz mono via a temp file, then reads it.
+static NSData *MWDecodeAudioFFmpeg(NSURL *url, NSError **error) {
+    NSString *ffmpeg = MWFindFFmpeg();
+    if (!ffmpeg) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"Audio format not supported by AVFoundation and ffmpeg was not found. "
+                   @"Install ffmpeg (e.g. 'brew install ffmpeg') to decode this file.");
+        return nil;
+    }
+
+    NSString *tempPath = [NSTemporaryDirectory()
+        stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"mw_ffmpeg_%@.f32le", [[NSUUID UUID] UUIDString]]];
+
+    // ffmpeg -i <input> -vn -ar 16000 -ac 1 -f f32le <tempPath>
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = ffmpeg;
+    task.arguments = @[
+        @"-y", @"-i", [url path],
+        @"-vn",                          // drop video
+        @"-ar", @"16000",                // resample to 16 kHz
+        @"-ac", @"1",                    // mono
+        @"-f",  @"f32le",               // raw float32 little-endian
+        tempPath
+    ];
+
+    NSPipe *stderrPipe = [NSPipe pipe];
+    task.standardError  = stderrPipe;
+    task.standardOutput = [NSPipe pipe];   // discard stdout
+
+    NSError *launchError = nil;
+    [task launchAndReturnError:&launchError];
+    if (launchError) {
+        [task release];
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"Failed to launch ffmpeg: %@",
+                    [launchError localizedDescription]]);
+        return nil;
+    }
+    [task waitUntilExit];
+
+    int status = task.terminationStatus;
+    [task release];
+
+    if (status != 0) {
+        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+        NSData *stderrData = [[stderrPipe fileHandleForReading] readDataToEndOfFile];
+        NSString *stderrStr = [[NSString alloc] initWithData:stderrData
+                                                    encoding:NSUTF8StringEncoding];
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   [NSString stringWithFormat:@"ffmpeg failed (exit %d): %@", status,
+                    stderrStr ?: @"(no output)"]);
+        [stderrStr release];
+        return nil;
+    }
+
+    NSData *rawPCM = [NSData dataWithContentsOfFile:tempPath];
+    [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+
+    if (!rawPCM || rawPCM.length == 0) {
+        MWSetError(error, MWErrorCodeAudioDecodeFailed,
+                   @"ffmpeg produced empty output");
+        return nil;
+    }
+    return rawPCM;
+}
+
 // ── AVAssetReader fallback for video containers ───────────────────────────────
 // Used when AVAudioFile rejects the file type (e.g. mp4, mov, mkv).
 // Extracts the first audio track, resamples to 16 kHz mono float32.
@@ -178,9 +262,9 @@ static NSData *MWDecodeAudioAsset(NSURL *url, NSError **error) {
 
     NSArray<AVAssetTrack *> *audioTracks = [asset tracksWithMediaType:AVMediaTypeAudio];
     if (audioTracks.count == 0) {
-        MWSetError(error, MWErrorCodeAudioDecodeFailed,
-                   @"No audio track found in file");
-        return nil;
+        // AVFoundation can't parse this container (e.g. webm, mkv with vp9/av1).
+        // Fall back to ffmpeg if available.
+        return MWDecodeAudioFFmpeg(url, error);
     }
     AVAssetTrack *audioTrack = audioTracks[0];
 
