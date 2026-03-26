@@ -15,8 +15,8 @@ echo ""
 
 CT2_DIR="$THIRD_PARTY/ctranslate2-mps"
 CT2_VERSION="4.7.1"
-CT2_DYLIB_URL="https://github.com/vsevolod-oparin/CTranslate2/releases/download/metal-dev-0.2/libctranslate2.mps.4.7.1.dylib"
-CT2_STATIC_URL="https://github.com/vsevolod-oparin/CTranslate2/releases/download/metal-dev-0.2/libctranslate2.mps.a"
+CT2_DYLIB_URL="https://github.com/vsevolod-oparin/CTranslate2/releases/download/metal-dev-0.3/libctranslate2.mps.4.7.1.dylib"
+CT2_STATIC_URL="https://github.com/vsevolod-oparin/CTranslate2/releases/download/metal-dev-0.3/libctranslate2.mps.a"
 CT2_HEADERS_URL="https://github.com/vsevolod-oparin/CTranslate2/archive/refs/heads/metal-dev.tar.gz"
 
 if [ -f "$CT2_DIR/lib/libctranslate2.dylib" ]; then

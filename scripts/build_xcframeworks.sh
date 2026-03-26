@@ -125,6 +125,12 @@ done
 # Copy module map
 cp "$PROJECT_DIR/src/module.modulemap" "$MW_FW/Modules/"
 
+# Bundle VAD model as a framework resource so consumers don't need to provide it separately
+if [ -f "$PROJECT_DIR/models/silero_vad_v6.onnx" ]; then
+    mkdir -p "$MW_FW/Resources"
+    cp "$PROJECT_DIR/models/silero_vad_v6.onnx" "$MW_FW/Resources/"
+fi
+
 # Info.plist
 cat > "$MW_FW/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

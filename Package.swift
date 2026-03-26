@@ -12,8 +12,9 @@
 //   4. Now you can use this package:
 //        .package(path: "/path/to/metal-faster-whisper")
 //
-// Or for binary distribution, host the xcframeworks as release artifacts and
-// use .binaryTarget(url:checksum:) instead of .binaryTarget(path:).
+// Or for binary distribution, run ./scripts/build_spm_release.sh which produces
+// a ready-to-commit Package.swift with .binaryTarget(url:checksum:) entries:
+//   ./scripts/build_spm_release.sh --repo vsevolod-oparin/metal-faster-whisper --version 0.1.0
 
 import PackageDescription
 

@@ -2353,6 +2353,14 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                stringByDeletingLastPathComponent];
             vadModelPathStr = [vadModelPathStr stringByAppendingPathComponent:@"models/silero_vad_v6.onnx"];
         }
+        // If not there, try inside the MetalWhisper framework bundle (xcframework distribution)
+        if (![[NSFileManager defaultManager] fileExistsAtPath:vadModelPathStr]) {
+            NSBundle *fwBundle = [NSBundle bundleForClass:[self class]];
+            NSString *fwPath = [fwBundle pathForResource:@"silero_vad_v6" ofType:@"onnx"];
+            if (fwPath) {
+                vadModelPathStr = fwPath;
+            }
+        }
     }
 
     NSError *vadError = nil;
