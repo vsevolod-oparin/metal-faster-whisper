@@ -182,35 +182,33 @@ static NSData *MWDecodeAudioFile(AVAudioFile *audioFile, NSError **error) {
 }
 
 // ── ffmpeg fallback for containers AVFoundation can't read (e.g. webm) ────────
-// Converts input to raw float32 PCM at 16 kHz mono via a temp file, then reads it.
-static NSData *MWDecodeAudioFFmpeg(NSURL *url, NSError **error) {
-    NSString *ffmpeg = MWFindFFmpeg();
-    if (!ffmpeg) {
-        MWSetError(error, MWErrorCodeAudioDecodeFailed,
-                   @"Audio format not supported by AVFoundation and ffmpeg was not found. "
-                   @"Install ffmpeg (e.g. 'brew install ffmpeg') to decode this file.");
-        return nil;
-    }
+// Two-step approach:
+//   Step 1 — Quick extraction: ffmpeg demuxes and decodes the audio tracks to a
+//             temp WAV at the source sample rate (no resampling). This is fast
+//             because ffmpeg only decodes audio; resampling is deferred.
+//   Step 2 — Decode: AVAudioFile reads the WAV and resamples to 16 kHz mono
+//             float32 via AVAudioConverter, the same path used for all other formats.
+//
+// Separating extraction from resampling avoids timing drift that occurred when
+// raw f32le output was used (no header → ambiguous length/offset for the decoder).
 
-    NSString *tempPath = [NSTemporaryDirectory()
-        stringByAppendingPathComponent:
-            [NSString stringWithFormat:@"mw_ffmpeg_%@.f32le", [[NSUUID UUID] UUIDString]]];
-
-    // ffmpeg -i <input> -vn -ar 16000 -ac 1 -f f32le <tempPath>
+static NSData *MWRunFFmpegExtract(NSString *ffmpeg, NSURL *inputURL,
+                                  NSString *outputPath, NSError **error) {
     NSTask *task = [[NSTask alloc] init];
     task.launchPath = ffmpeg;
+    // -vn: drop all video streams
+    // -c:a pcm_s16le: decode audio to signed 16-bit PCM (native sample rate, no resample)
+    // WAV container: includes header so AVAudioFile knows sample rate / channel count
     task.arguments = @[
-        @"-y", @"-i", [url path],
-        @"-vn",                          // drop video
-        @"-ar", @"16000",                // resample to 16 kHz
-        @"-ac", @"1",                    // mono
-        @"-f",  @"f32le",               // raw float32 little-endian
-        tempPath
+        @"-y", @"-i", [inputURL path],
+        @"-vn",
+        @"-c:a", @"pcm_s16le",
+        outputPath
     ];
 
     NSPipe *stderrPipe = [NSPipe pipe];
     task.standardError  = stderrPipe;
-    task.standardOutput = [NSPipe pipe];   // discard stdout
+    task.standardOutput = [NSPipe pipe];
 
     NSError *launchError = nil;
     [task launchAndReturnError:&launchError];
@@ -227,26 +225,53 @@ static NSData *MWDecodeAudioFFmpeg(NSURL *url, NSError **error) {
     [task release];
 
     if (status != 0) {
-        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
         NSData *stderrData = [[stderrPipe fileHandleForReading] readDataToEndOfFile];
         NSString *stderrStr = [[NSString alloc] initWithData:stderrData
                                                     encoding:NSUTF8StringEncoding];
         MWSetError(error, MWErrorCodeAudioDecodeFailed,
-                   [NSString stringWithFormat:@"ffmpeg failed (exit %d): %@", status,
-                    stderrStr ?: @"(no output)"]);
+                   [NSString stringWithFormat:@"ffmpeg failed (exit %d): %@",
+                    status, stderrStr ?: @"(no output)"]);
         [stderrStr release];
         return nil;
     }
+    return (NSData *)1;  // sentinel: success, no data returned here
+}
 
-    NSData *rawPCM = [NSData dataWithContentsOfFile:tempPath];
-    [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
-
-    if (!rawPCM || rawPCM.length == 0) {
+static NSData *MWDecodeAudioFFmpeg(NSURL *url, NSError **error) {
+    NSString *ffmpeg = MWFindFFmpeg();
+    if (!ffmpeg) {
         MWSetError(error, MWErrorCodeAudioDecodeFailed,
-                   @"ffmpeg produced empty output");
+                   @"Audio format not supported by AVFoundation and ffmpeg was not found. "
+                   @"Install ffmpeg (e.g. 'brew install ffmpeg') to decode this file.");
         return nil;
     }
-    return rawPCM;
+
+    // Step 1: extract audio tracks to a temp WAV (native sample rate, no resample).
+    NSString *tempWAV = [NSTemporaryDirectory()
+        stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"mw_extract_%@.wav", [[NSUUID UUID] UUIDString]]];
+
+    NSError *extractError = nil;
+    if (!MWRunFFmpegExtract(ffmpeg, url, tempWAV, &extractError)) {
+        [[NSFileManager defaultManager] removeItemAtPath:tempWAV error:nil];
+        if (error) *error = extractError;
+        return nil;
+    }
+
+    // Step 2: decode the WAV via AVAudioFile + AVAudioConverter (resamples to 16 kHz mono float32).
+    NSURL *wavURL = [NSURL fileURLWithPath:tempWAV];
+    NSError *decodeError = nil;
+    AVAudioFile *audioFile = [[AVAudioFile alloc] initForReading:wavURL error:&decodeError];
+    if (!audioFile) {
+        [[NSFileManager defaultManager] removeItemAtPath:tempWAV error:nil];
+        if (error) *error = decodeError;
+        return nil;
+    }
+
+    NSData *result = MWDecodeAudioFile(audioFile, error);
+    [audioFile release];
+    [[NSFileManager defaultManager] removeItemAtPath:tempWAV error:nil];
+    return result;
 }
 
 // ── AVAssetReader fallback for video containers ───────────────────────────────
