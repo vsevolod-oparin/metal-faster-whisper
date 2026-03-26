@@ -500,6 +500,12 @@ static void executeBluesteinDFT(BluesteinDFT *ctx,
             return nil;
         }
 
+        if ([audio length] % sizeof(float) != 0) {
+            MWSetError(error, MWErrorCodeEncodeFailed,
+                       @"Input audio length is not a multiple of sizeof(float)");
+            return nil;
+        }
+
         NSUInteger nSamples = [audio length] / sizeof(float);
         const float *audioPtr = (const float *)[audio bytes];
 
