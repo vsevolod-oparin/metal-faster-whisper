@@ -118,7 +118,7 @@ fi
 # Copy public headers
 for h in MetalWhisper.h MWTranscriber.h MWTranscriptionOptions.h MWAudioDecoder.h \
          MWFeatureExtractor.h MWTokenizer.h MWVoiceActivityDetector.h \
-         MWModelManager.h MWConstants.h; do
+         MWModelManager.h MWConstants.h MWLiveTranscriber.h MWHelpers.h; do
     cp "$PROJECT_DIR/src/$h" "$MW_FW/Headers/"
 done
 

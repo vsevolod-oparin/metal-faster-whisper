@@ -143,6 +143,7 @@ install(FILES
     src/MWHelpers.h
     src/MWModelManager.h
     src/MWVoiceActivityDetector.h
+    src/MWLiveTranscriber.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MetalWhisper
 )
 
