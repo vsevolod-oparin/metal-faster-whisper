@@ -6,6 +6,9 @@
 #   build/xcframeworks/MetalWhisper.xcframework
 #   build/xcframeworks/CTranslate2.xcframework
 #   build/xcframeworks/OnnxRuntime.xcframework
+#
+# Frameworks use versioned macOS bundle layout (Versions/A/) as required by
+# macOS non-shallow-bundle validation in Xcode 15+.
 
 set -e
 
@@ -30,109 +33,78 @@ fi
 rm -rf "$XCF_DIR"
 mkdir -p "$XCF_DIR"
 
-# Helper: create an xcframework from a dylib
-# Usage: make_xcframework <name> <dylib_path> <headers_dir> <install_name>
-make_xcframework() {
-    local name="$1"
-    local dylib="$2"
-    local headers="$3"
-    local staging="$XCF_DIR/staging-$name"
+# Helper: build a versioned macOS framework bundle from a dylib.
+# macOS requires the versioned layout (Versions/A/); shallow bundles fail
+# Xcode 15+ framework validation ("does not use shallow bundles").
+#
+# Usage: make_versioned_framework <fw_dir> <name> <dylib_path>
+#   fw_dir   – destination .framework directory (must not exist yet)
+#   name     – framework name (binary, identifier suffix)
+#   dylib    – source dylib to copy
+# After calling this, copy headers/modules/resources into $fw_dir/Versions/A/
+# and write Info.plist to $fw_dir/Versions/A/Resources/Info.plist.
+make_versioned_framework() {
+    local fw_dir="$1"
+    local name="$2"
+    local dylib="$3"
 
-    echo "Creating $name.xcframework..."
-    rm -rf "$staging"
+    local ver_dir="$fw_dir/Versions/A"
+    mkdir -p "$ver_dir/Headers" "$ver_dir/Resources"
 
-    # Create a proper framework bundle from the dylib
-    local fw_dir="$staging/$name.framework"
-    mkdir -p "$fw_dir/Headers"
+    # Canonical symlinks required by macOS framework spec
+    ln -sf A            "$fw_dir/Versions/Current"
+    ln -sf "Versions/Current/$name"     "$fw_dir/$name"
+    ln -sf "Versions/Current/Headers"   "$fw_dir/Headers"
+    ln -sf "Versions/Current/Resources" "$fw_dir/Resources"
 
-    # Copy and rename dylib to framework binary
-    cp "$dylib" "$fw_dir/$name"
-
-    # Fix install name to be framework-relative
-    install_name_tool -id "@rpath/$name.framework/$name" "$fw_dir/$name" 2>/dev/null || true
-
-    # Copy public headers
-    if [ -d "$headers" ]; then
-        cp -R "$headers"/*.h "$fw_dir/Headers/" 2>/dev/null || true
-        # Also copy subdirectories (e.g., ctranslate2/)
-        for subdir in "$headers"/*/; do
-            if [ -d "$subdir" ]; then
-                cp -R "$subdir" "$fw_dir/Headers/"
-            fi
-        done
-    fi
-
-    # Create Info.plist
-    cat > "$fw_dir/Info.plist" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>$name</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.metalwhisper.$name</string>
-    <key>CFBundleVersion</key>
-    <string>1.0</string>
-    <key>CFBundlePackageType</key>
-    <string>FMWK</string>
-    <key>CFBundleSupportedPlatforms</key>
-    <array><string>MacOSX</string></array>
-    <key>MinimumOSVersion</key>
-    <string>14.0</string>
-</dict>
-</plist>
-PLIST
-
-    # Build xcframework
-    xcodebuild -create-xcframework \
-        -framework "$fw_dir" \
-        -output "$XCF_DIR/$name.xcframework"
-
-    rm -rf "$staging"
-    echo "  ✓ $name.xcframework"
+    # Copy binary and fix install name
+    cp "$dylib" "$ver_dir/$name"
+    install_name_tool -id "@rpath/$name.framework/Versions/A/$name" \
+        "$ver_dir/$name" 2>/dev/null || true
 }
 
 # ── MetalWhisper xcframework ──
 
 MW_STAGING="$XCF_DIR/staging-mw"
 MW_FW="$MW_STAGING/MetalWhisper.framework"
-mkdir -p "$MW_FW/Headers" "$MW_FW/Modules"
+MW_VER="$MW_FW/Versions/A"
 
-# Copy dylib as framework binary
-cp "$BUILD_DIR/libMetalWhisper.0.1.0.dylib" "$MW_FW/MetalWhisper"
-install_name_tool -id "@rpath/MetalWhisper.framework/MetalWhisper" "$MW_FW/MetalWhisper" 2>/dev/null || true
+make_versioned_framework "$MW_FW" "MetalWhisper" \
+    "$BUILD_DIR/libMetalWhisper.0.1.0.dylib"
+
+# Modules dir (for module map)
+mkdir -p "$MW_VER/Modules"
+ln -sf "Versions/Current/Modules" "$MW_FW/Modules"
 
 # Rewrite dependency references to match xcframework names.
 # MetalWhisper references @rpath/libctranslate2.mps.4.dylib → @rpath/CTranslate2.framework/CTranslate2
 # MetalWhisper references @rpath/libonnxruntime.1.21.0.dylib → @rpath/OnnxRuntime.framework/OnnxRuntime
-CT2_OLD=$(otool -L "$MW_FW/MetalWhisper" | grep -o '@rpath/libctranslate2[^ ]*' | head -1)
-ORT_OLD=$(otool -L "$MW_FW/MetalWhisper" | grep -o '@rpath/libonnxruntime[^ ]*' | head -1)
+CT2_OLD=$(otool -L "$MW_VER/MetalWhisper" | grep -o '@rpath/libctranslate2[^ ]*' | head -1)
+ORT_OLD=$(otool -L "$MW_VER/MetalWhisper" | grep -o '@rpath/libonnxruntime[^ ]*' | head -1)
 if [ -n "$CT2_OLD" ]; then
-    install_name_tool -change "$CT2_OLD" "@rpath/CTranslate2.framework/CTranslate2" "$MW_FW/MetalWhisper"
+    install_name_tool -change "$CT2_OLD" "@rpath/CTranslate2.framework/CTranslate2" "$MW_VER/MetalWhisper"
 fi
 if [ -n "$ORT_OLD" ]; then
-    install_name_tool -change "$ORT_OLD" "@rpath/OnnxRuntime.framework/OnnxRuntime" "$MW_FW/MetalWhisper"
+    install_name_tool -change "$ORT_OLD" "@rpath/OnnxRuntime.framework/OnnxRuntime" "$MW_VER/MetalWhisper"
 fi
 
 # Copy public headers
 for h in MetalWhisper.h MWTranscriber.h MWTranscriptionOptions.h MWAudioDecoder.h \
          MWFeatureExtractor.h MWTokenizer.h MWVoiceActivityDetector.h \
          MWModelManager.h MWConstants.h MWLiveTranscriber.h MWHelpers.h; do
-    cp "$PROJECT_DIR/src/$h" "$MW_FW/Headers/"
+    cp "$PROJECT_DIR/src/$h" "$MW_VER/Headers/"
 done
 
 # Copy module map
-cp "$PROJECT_DIR/src/module.modulemap" "$MW_FW/Modules/"
+cp "$PROJECT_DIR/src/module.modulemap" "$MW_VER/Modules/"
 
 # Bundle VAD model as a framework resource so consumers don't need to provide it separately
 if [ -f "$PROJECT_DIR/models/silero_vad_v6.onnx" ]; then
-    mkdir -p "$MW_FW/Resources"
-    cp "$PROJECT_DIR/models/silero_vad_v6.onnx" "$MW_FW/Resources/"
+    cp "$PROJECT_DIR/models/silero_vad_v6.onnx" "$MW_VER/Resources/"
 fi
 
-# Info.plist
-cat > "$MW_FW/Info.plist" << 'PLIST'
+# Info.plist goes in Versions/A/Resources/ (not framework root)
+cat > "$MW_VER/Resources/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -177,16 +149,16 @@ fi
 
 CT2_STAGING="$XCF_DIR/staging-ct2"
 CT2_FW="$CT2_STAGING/CTranslate2.framework"
-mkdir -p "$CT2_FW/Headers"
-cp "$CT2_DYLIB" "$CT2_FW/CTranslate2"
-install_name_tool -id "@rpath/CTranslate2.framework/CTranslate2" "$CT2_FW/CTranslate2" 2>/dev/null || true
+CT2_VER="$CT2_FW/Versions/A"
+
+make_versioned_framework "$CT2_FW" "CTranslate2" "$CT2_DYLIB"
 
 # Copy CT2 headers (including subdirectories)
 if [ -d "$CT2_INC/ctranslate2" ]; then
-    cp -R "$CT2_INC/ctranslate2" "$CT2_FW/Headers/"
+    cp -R "$CT2_INC/ctranslate2" "$CT2_VER/Headers/"
 fi
 
-cat > "$CT2_FW/Info.plist" << 'PLIST'
+cat > "$CT2_VER/Resources/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -223,22 +195,22 @@ fi
 
 ORT_STAGING="$XCF_DIR/staging-ort"
 ORT_FW="$ORT_STAGING/OnnxRuntime.framework"
-mkdir -p "$ORT_FW/Headers"
-cp "$ORT_DYLIB" "$ORT_FW/OnnxRuntime"
-install_name_tool -id "@rpath/OnnxRuntime.framework/OnnxRuntime" "$ORT_FW/OnnxRuntime" 2>/dev/null || true
+ORT_VER="$ORT_FW/Versions/A"
+
+make_versioned_framework "$ORT_FW" "OnnxRuntime" "$ORT_DYLIB"
 
 # Copy ORT headers
 for h in "$ORT_DIR/include"/*.h; do
-    cp "$h" "$ORT_FW/Headers/" 2>/dev/null || true
+    cp "$h" "$ORT_VER/Headers/" 2>/dev/null || true
 done
 # Copy subdirectories (core/)
 for subdir in "$ORT_DIR/include"/*/; do
     if [ -d "$subdir" ]; then
-        cp -R "$subdir" "$ORT_FW/Headers/"
+        cp -R "$subdir" "$ORT_VER/Headers/"
     fi
 done
 
-cat > "$ORT_FW/Info.plist" << 'PLIST'
+cat > "$ORT_VER/Resources/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
