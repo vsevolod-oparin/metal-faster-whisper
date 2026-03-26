@@ -289,6 +289,12 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             return nil;
         }
 
+        // M19: Clear MPS buffer pool before encoding with potentially different
+        // frame dimensions. Prevents stale MPS per-buffer optimization state
+        // from corrupting the encoder output. See whisper.cc generate() for the
+        // same fix on the decoder side.
+        ctranslate2::get_allocator(ctranslate2::Device::MPS).clear_cache();
+
         // Copy mel data into a vector to avoid const_cast on NSData's immutable bytes.
         const float *srcPtr = (const float *)[melSpectrogram bytes];
         NSUInteger totalElements = nMels * nFrames;
@@ -711,11 +717,31 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         }
 
         // Build encoder output StorageView.
+        // Encoder output shape is [1, T, d_model] where T = input_frames / 2.
+        // For standard 30s: T=1500, d_model varies by model (1280 for turbo/large-v3).
+        // For shorter windows: T = actual_mel_frames / 2.
+        // We infer shape from the data size: try d_model candidates that divide evenly.
         NSUInteger encodedElements = [encoderOutput length] / sizeof(float);
-        NSUInteger dModel = encodedElements / kMWEncoderOutputFrames;  // shape [1, kMWEncoderOutputFrames, d_model]
+        NSUInteger outputFrames = 0;
+        NSUInteger dModel = 0;
+
+        // Try known d_model values: 1280 (large/turbo), 512 (base), 384 (small), 192 (tiny)
+        static const NSUInteger kKnownDModels[] = {1280, 512, 384, 192};
+        for (int dm = 0; dm < 4; dm++) {
+            if (encodedElements % kKnownDModels[dm] == 0) {
+                dModel = kKnownDModels[dm];
+                outputFrames = encodedElements / dModel;
+                break;
+            }
+        }
         if (dModel == 0) {
+            // Fallback: assume standard 1500 frames
+            dModel = encodedElements / kMWEncoderOutputFrames;
+            outputFrames = kMWEncoderOutputFrames;
+        }
+        if (dModel == 0 || outputFrames == 0) {
             MWSetError(error, MWErrorCodeGenerateFailed,
-                       [NSString stringWithFormat:@"Invalid encoder output: dModel=0 (elements=%lu)",
+                       [NSString stringWithFormat:@"Invalid encoder output: cannot infer shape (elements=%lu)",
                         (unsigned long)encodedElements]);
             return nil;
         }
@@ -724,7 +750,7 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
         const float *encSrcPtr = (const float *)[encoderOutput bytes];
         std::vector<float> encCopy(encSrcPtr, encSrcPtr + encodedElements);
         ctranslate2::StorageView encView(
-            {1, (ctranslate2::dim_t)kMWEncoderOutputFrames, (ctranslate2::dim_t)dModel},
+            {1, (ctranslate2::dim_t)outputFrames, (ctranslate2::dim_t)dModel},
             encCopy.data(),
             ctranslate2::Device::CPU
         );
@@ -798,6 +824,15 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             // Call generate.
             auto futures = _whisper->generate(encView, prompts, opts);
             auto result = futures[0].get();
+
+            // Flush MPS command buffer after beam search to prevent GPU state
+            // corruption that causes subsequent greedy decodes to produce garbage.
+            // This is critical when beam_size > 1: the beam search operations
+            // (batched KV cache gathers, TopK, scoring) leave MPS in a state
+            // that corrupts later single-beam operations.
+            if (opts.beam_size > 1) {
+                ctranslate2::synchronize_stream(ctranslate2::Device::MPS);
+            }
 
             if (result.sequences_ids.empty() || result.sequences_ids[0].empty()) {
                 continue;

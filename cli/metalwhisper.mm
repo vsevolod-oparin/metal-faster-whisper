@@ -111,12 +111,22 @@ static NSString *formatTimeVTT(float seconds) {
 
 // ── Output formatters ──────────────────────────────────────────────────────
 
-static NSString *formatText(NSArray<MWTranscriptionSegment *> *segments) {
+static NSString *formatText(NSArray<MWTranscriptionSegment *> *segments,
+                            BOOL wordTimestamps) {
     NSMutableString *out = [[NSMutableString alloc] init];
     for (MWTranscriptionSegment *seg in segments) {
-        [out appendString:[seg.text stringByTrimmingCharactersInSet:
-            [NSCharacterSet whitespaceCharacterSet]]];
-        [out appendString:@"\n"];
+        if (wordTimestamps && seg.words) {
+            for (MWWord *w in seg.words) {
+                NSString *word = [w.word stringByTrimmingCharactersInSet:
+                    [NSCharacterSet whitespaceCharacterSet]];
+                [out appendFormat:@"[%@ --> %@] %@\n",
+                    formatTimeSRT(w.start), formatTimeSRT(w.end), word];
+            }
+        } else {
+            [out appendString:[seg.text stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceCharacterSet]]];
+            [out appendString:@"\n"];
+        }
     }
     NSString *result = [[out copy] autorelease];
     [out release];
@@ -779,7 +789,7 @@ int main(int argc, const char *argv[]) {
             NSString *output = nil;
             switch (opts.outputFormat) {
                 case OutputFormatText:
-                    output = formatText(segments);
+                    output = formatText(segments, opts.wordTimestamps);
                     break;
                 case OutputFormatSRT:
                     output = formatSRT(segments, opts.wordTimestamps);

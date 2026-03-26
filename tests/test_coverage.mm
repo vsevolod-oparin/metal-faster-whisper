@@ -1822,21 +1822,29 @@ int main(int argc, const char *argv[]) {
         fprintf(stdout, "\n--- Group 8: Word alignment reference (M5) ---\n");
         test_m5_alignment();
 
-        // ── Group 9: Concurrent transcription (M7) ──
-        fprintf(stdout, "\n--- Group 9: Concurrent transcription (M7) ---\n");
-        test_m7_concurrent_files();
+        // ── Heavy tests: gated behind MW_TEST_HEAVY=1 ──
+        const char *heavyEnv = getenv("MW_TEST_HEAVY");
+        BOOL runHeavy = (heavyEnv && strcmp(heavyEnv, "1") == 0);
 
-        // ── Group 10: WER on LibriSpeech subset (M11) ──
-        fprintf(stdout, "\n--- Group 10: WER on LibriSpeech (M11) ---\n");
-        test_m11_wer_librispeech();
+        if (runHeavy) {
+            // ── Group 9: Concurrent transcription (M7) ──
+            fprintf(stdout, "\n--- Group 9: Concurrent transcription (M7) ---\n");
+            test_m7_concurrent_files();
 
-        // ── Group 11: Live transcription / microphone (M10.9) ──
-        fprintf(stdout, "\n--- Group 11: Live transcription (M10.9) ---\n");
-        test_m10_microphone();
+            // ── Group 10: WER on LibriSpeech subset (M11) ──
+            fprintf(stdout, "\n--- Group 10: WER on LibriSpeech (M11) ---\n");
+            test_m11_wer_librispeech();
 
-        // ── Group 12: Model unload/reload (M12.11) — must be last (modifies shared model) ──
-        fprintf(stdout, "\n--- Group 12: Model unload/reload (M12.11) ---\n");
-        test_model_unload_reload();
+            // ── Group 11: Live transcription / microphone (M10.9) ──
+            fprintf(stdout, "\n--- Group 11: Live transcription (M10.9) ---\n");
+            test_m10_microphone();
+
+            // ── Group 12: Model unload/reload (M12.11) — must be last ──
+            fprintf(stdout, "\n--- Group 12: Model unload/reload (M12.11) ---\n");
+            test_model_unload_reload();
+        } else {
+            fprintf(stdout, "\n--- Heavy tests skipped (set MW_TEST_HEAVY=1 to run) ---\n");
+        }
 
         // ── Summary ──
         fprintf(stdout, "\n=== Results: %d passed, %d failed ===\n",
