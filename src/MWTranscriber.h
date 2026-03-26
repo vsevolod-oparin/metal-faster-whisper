@@ -130,9 +130,18 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
                                      error:(NSError **)error;
 
 /// Initialize with a CTranslate2 model directory path and explicit compute type.
-/// This is the designated initializer.
 - (nullable instancetype)initWithModelPath:(NSString *)modelPath
                                computeType:(MWComputeType)computeType
+                                     error:(NSError **)error;
+
+/// Initialize with a CTranslate2 model directory path, compute type, and flash attention flag.
+/// This is the designated initializer.
+/// @param flashAttention Use Flash Attention for encoder and decoder self-attention layers.
+///        Requires float16 or float32 compute type. Improves throughput on long audio.
+///        Decoder cross-attention always uses standard attention.
+- (nullable instancetype)initWithModelPath:(NSString *)modelPath
+                               computeType:(MWComputeType)computeType
+                            flashAttention:(BOOL)flashAttention
                                      error:(NSError **)error NS_DESIGNATED_INITIALIZER;
 
 /// Unavailable — use initWithModelPath:error: or initWithModelPath:computeType:error:.
@@ -142,6 +151,9 @@ typedef NS_ENUM(NSInteger, MWComputeType) {
 
 /// Whether the loaded model is multilingual (supports language detection).
 @property (nonatomic, readonly) BOOL isMultilingual;
+
+/// Whether flash attention is enabled for self-attention layers.
+@property (nonatomic, readonly) BOOL flashAttention;
 
 /// Number of mel frequency bins expected by the model (80 or 128).
 @property (nonatomic, readonly) NSUInteger nMels;

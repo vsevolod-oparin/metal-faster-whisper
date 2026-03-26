@@ -50,6 +50,8 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
     NSArray<NSString *> *_supportedLanguages;
     NSArray<NSNumber *> *_suppressTokens;
     NSArray<NSNumber *> *_suppressTokensAtBegin;
+
+    BOOL _flashAttention;
 }
 
 // ── Initializers ────────────────────────────────────────────────────────────
@@ -58,31 +60,43 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
                                      error:(NSError **)error {
     return [self initWithModelPath:modelPath
                        computeType:MWComputeTypeDefault
+                    flashAttention:NO
                              error:error];
 }
 
 - (nullable instancetype)initWithModelPath:(NSString *)modelPath
                                computeType:(MWComputeType)computeType
                                      error:(NSError **)error {
+    return [self initWithModelPath:modelPath
+                       computeType:computeType
+                    flashAttention:NO
+                             error:error];
+}
+
+- (nullable instancetype)initWithModelPath:(NSString *)modelPath
+                               computeType:(MWComputeType)computeType
+                            flashAttention:(BOOL)flashAttention
+                                     error:(NSError **)error {
     self = [super init];
     if (!self) return nil;
 
-    // Save model path and compute type for reload.
+    // Save model path, compute type, and flash attention flag for reload.
     _modelPath = [modelPath retain];
     _computeType = computeType;
+    _flashAttention = flashAttention;
 
     // Step 1: Load CTranslate2 model
     try {
         const std::string path = [modelPath UTF8String];
         const auto ct2Type = mwComputeTypeToCT2(computeType);
 
-        _whisper = std::make_unique<ctranslate2::models::Whisper>(
-            path,
-            ctranslate2::Device::MPS,
-            ct2Type,
-            std::vector<int>{0},
-            false
-        );
+        ctranslate2::models::ModelLoader loader(path);
+        loader.device = ctranslate2::Device::MPS;
+        loader.device_indices = {0};
+        loader.compute_type = ct2Type;
+        loader.use_flash_attention = (bool)flashAttention;
+
+        _whisper = std::make_unique<ctranslate2::models::Whisper>(loader);
 
         MWLog(@"[MetalWhisper] Model loaded: multilingual=%d  n_mels=%zu  compute_type=%s",
               self.isMultilingual, (size_t)self.nMels,
@@ -208,6 +222,10 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
 
 - (BOOL)isMultilingual {
     return _whisper->is_multilingual() ? YES : NO;
+}
+
+- (BOOL)flashAttention {
+    return _flashAttention;
 }
 
 - (NSUInteger)nMels {
@@ -3016,13 +3034,13 @@ static ctranslate2::ComputeType mwComputeTypeToCT2(MWComputeType type) {
             const std::string path = [_modelPath UTF8String];
             const auto ct2Type = mwComputeTypeToCT2(_computeType);
 
-            _whisper = std::make_unique<ctranslate2::models::Whisper>(
-                path,
-                ctranslate2::Device::MPS,
-                ct2Type,
-                std::vector<int>{0},
-                false
-            );
+            ctranslate2::models::ModelLoader loader(path);
+            loader.device = ctranslate2::Device::MPS;
+            loader.device_indices = {0};
+            loader.compute_type = ct2Type;
+            loader.use_flash_attention = (bool)_flashAttention;
+
+            _whisper = std::make_unique<ctranslate2::models::Whisper>(loader);
 
             MWLog(@"[MetalWhisper] Model reloaded: multilingual=%d  n_mels=%zu",
                   self.isMultilingual, (size_t)self.nMels);
