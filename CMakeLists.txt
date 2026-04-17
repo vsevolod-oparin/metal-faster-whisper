@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(MetalWhisper
-    VERSION 0.2.1
+    VERSION 0.2.2
     LANGUAGES CXX OBJCXX)
 
 # ── macOS deployment target ──────────────────────────────────────────────────

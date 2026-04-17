@@ -81,10 +81,12 @@ echo "  OnnxRuntime:   $ORT_CHECKSUM"
 
 # ── Step 4: Generate Package.swift ───────────────────────────────────────
 
+# Tags use the 'v' prefix (v0.2.0, v0.2.1, ...) per repo convention.
+TAG="v$VERSION"
 if [ -n "$REPO" ]; then
-    BASE_URL="https://github.com/$REPO/releases/download/$VERSION"
+    BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 else
-    BASE_URL="https://github.com/OWNER/REPO/releases/download/$VERSION"
+    BASE_URL="https://github.com/OWNER/REPO/releases/download/$TAG"
 fi
 
 cat > "$RELEASE_DIR/Package.swift" << EOF
