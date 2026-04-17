@@ -2,6 +2,7 @@
 // Manual retain/release (-fno-objc-arc)
 
 #import <Foundation/Foundation.h>
+#import <AVFoundation/AVFoundation.h>
 #import "MWTranscriber.h"
 #import "MWAudioDecoder.h"
 #import "MWVoiceActivityDetector.h"
@@ -81,11 +82,87 @@ struct CLIOptions {
     BOOL conditionOnPreviousText;
     NSArray<NSNumber *> *temperatures;
     BOOL verbose;
+    BOOL progress;
     NSMutableArray<NSString *> *inputFiles;
     BOOL readStdin;
     BOOL listModels;
     BOOL downloadOnly;
 };
+
+// ── Progress bar ───────────────────────────────────────────────────────────
+
+// Probe audio duration (seconds) without decoding — reads container metadata.
+// Returns 0 on failure, in which case the caller should fall back to a
+// percentage-less progress indicator.
+static double probeAudioDuration(NSURL *url) {
+    AVURLAsset *asset = [AVURLAsset assetWithURL:url];
+    CMTime t = asset.duration;
+    if (CMTIME_IS_INVALID(t) || CMTIME_IS_INDEFINITE(t) || t.timescale == 0) {
+        return 0.0;
+    }
+    return CMTimeGetSeconds(t);
+}
+
+// Format seconds as H:MM:SS (drops hour if zero).
+static NSString *formatElapsed(double seconds) {
+    if (seconds < 0.0) seconds = 0.0;
+    int total = (int)(seconds + 0.5);
+    int h = total / 3600;
+    int m = (total % 3600) / 60;
+    int s = total % 60;
+    if (h > 0) return [NSString stringWithFormat:@"%d:%02d:%02d", h, m, s];
+    return [NSString stringWithFormat:@"%d:%02d", m, s];
+}
+
+// Render a progress line on stderr with \r to overwrite. Only called when
+// stderr is a TTY. barWidth is the number of cells in the [████░░] bar.
+static void renderProgress(double processedSec, double totalSec, double startTime) {
+    const int barWidth = 24;
+    double now = [[NSDate date] timeIntervalSince1970];
+    double elapsed = now - startTime;
+    double rtf = elapsed > 0.0 ? processedSec / elapsed : 0.0;  // audio sec per wall sec
+
+    if (totalSec > 0.0) {
+        double frac = processedSec / totalSec;
+        if (frac < 0.0) frac = 0.0;
+        if (frac > 1.0) frac = 1.0;
+        int filled = (int)(frac * barWidth + 0.5);
+        char bar[64];
+        int i = 0;
+        bar[i++] = '[';
+        for (int k = 0; k < barWidth; k++) {
+            bar[i++] = (k < filled) ? '#' : '-';
+        }
+        bar[i++] = ']';
+        bar[i] = '\0';
+
+        // Until we have a real RTF measurement (first segment), show "--:--"
+        // for ETA instead of a bogus 0:00.
+        NSString *etaStr;
+        NSString *rtfStr;
+        if (rtf > 0.001 && processedSec > 0.0) {
+            double remaining = (totalSec - processedSec) / rtf;
+            etaStr = formatElapsed(remaining);
+            rtfStr = [NSString stringWithFormat:@"%.1fx", rtf];
+        } else {
+            etaStr = @"--:--";
+            rtfStr = @"--";
+        }
+        fprintf(stderr, "\r%s %3d%% | %s / %s | %s | elapsed %s | ETA %s\033[K",
+                bar,
+                (int)(frac * 100.0 + 0.5),
+                [formatElapsed(processedSec) UTF8String],
+                [formatElapsed(totalSec) UTF8String],
+                [rtfStr UTF8String],
+                [formatElapsed(elapsed) UTF8String],
+                [etaStr UTF8String]);
+    } else {
+        // Unknown total — show elapsed audio and realtime factor.
+        fprintf(stderr, "\r%s processed | %.1fx realtime\033[K",
+                [formatElapsed(processedSec) UTF8String], rtf);
+    }
+    fflush(stderr);
+}
 
 // ── Time formatting ────────────────────────────────────────────────────────
 
@@ -301,7 +378,8 @@ static void printUsage(void) {
         "  --temperature <t1,t2,...>     Temperature(s) for fallback\n"
         "                                (default: 0.0,0.6)\n"
         "  --json                        Shorthand for --output-format json\n"
-        "  --verbose                     Show progress and timing info on stderr\n"
+        "  --verbose                     Show per-segment output and timing on stderr\n"
+        "  --progress                    Show a progress bar on stderr (TTY only)\n"
         "  --list-models                 List available model aliases\n"
         "  --download                    Download model without transcribing\n"
         "  --help                        Show help\n"
@@ -385,6 +463,7 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
     opts->conditionOnPreviousText = YES;
     opts->temperatures = @[@(0.0f), @(0.6f)];
     opts->verbose = NO;
+    opts->progress = NO;
     opts->inputFiles = [NSMutableArray array];
     opts->readStdin = NO;
     opts->listModels = NO;
@@ -463,6 +542,8 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
             opts->outputFormat = OutputFormatJSON;
         } else if (strcmp(arg, "--verbose") == 0) {
             opts->verbose = YES;
+        } else if (strcmp(arg, "--progress") == 0) {
+            opts->progress = YES;
         } else if (strcmp(arg, "--list-models") == 0) {
             opts->listModels = YES;
         } else if (strcmp(arg, "--download") == 0) {
@@ -739,15 +820,71 @@ int main(int argc, const char *argv[]) {
             NSError *transcribeError = nil;
             NSArray<MWTranscriptionSegment *> *segments = nil;
 
-            // Segment handler for verbose progress
+            // Progress bar only renders when stderr is a TTY — avoids spamming
+            // control codes into log files, CI output, etc.
+            BOOL progressActive = opts.progress && isatty(fileno(stderr));
+            double progressTotal = progressActive ? probeAudioDuration(inputURL) : 0.0;
+            double progressStart = [[NSDate date] timeIntervalSince1970];
+
+            // Serial queue for all progress output so the segmentHandler
+            // (transcriber thread) and the ticker timer don't interleave
+            // writes to stderr.
+            dispatch_queue_t progressQueue = NULL;
+            dispatch_source_t progressTimer = NULL;
+            __block double lastProcessedSec = 0.0;
+
+            if (progressActive) {
+                // Draw an initial 0% bar immediately so the user sees the bar
+                // before any segments arrive (model setup + first-chunk decode
+                // can take several seconds).
+                renderProgress(0.0, progressTotal, progressStart);
+
+                progressQueue = dispatch_queue_create("mw.cli.progress", DISPATCH_QUEUE_SERIAL);
+                progressTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, progressQueue);
+                // Tick every 200 ms — keeps elapsed/ETA/RTF live between segments.
+                dispatch_source_set_timer(progressTimer,
+                    dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC),
+                    200 * NSEC_PER_MSEC,
+                    50 * NSEC_PER_MSEC);  // 50ms leeway
+                dispatch_source_set_event_handler(progressTimer, ^{
+                    renderProgress(lastProcessedSec, progressTotal, progressStart);
+                });
+                dispatch_resume(progressTimer);
+            }
+
+            // Segment handler: --verbose prints each segment; --progress draws
+            // a live bar keyed off the latest seg.end. Both can be active.
             void (^segHandler)(MWTranscriptionSegment *, BOOL *) = nil;
-            if (opts.verbose) {
+            if (opts.verbose || progressActive) {
                 segHandler = ^(MWTranscriptionSegment *seg, BOOL *stop) {
-                    fprintf(stderr, "[%s --> %s] %s\n",
-                        [formatTimeSRT(seg.start) UTF8String],
-                        [formatTimeSRT(seg.end) UTF8String],
-                        [[seg.text stringByTrimmingCharactersInSet:
-                            [NSCharacterSet whitespaceCharacterSet]] UTF8String]);
+                    if (opts.verbose) {
+                        // Serialize the verbose line with the ticker so the
+                        // bar doesn't interleave with segment text.
+                        if (progressActive) {
+                            dispatch_sync(progressQueue, ^{
+                                fprintf(stderr, "\r\033[K[%s --> %s] %s\n",
+                                    [formatTimeSRT(seg.start) UTF8String],
+                                    [formatTimeSRT(seg.end) UTF8String],
+                                    [[seg.text stringByTrimmingCharactersInSet:
+                                        [NSCharacterSet whitespaceCharacterSet]] UTF8String]);
+                            });
+                        } else {
+                            fprintf(stderr, "[%s --> %s] %s\n",
+                                [formatTimeSRT(seg.start) UTF8String],
+                                [formatTimeSRT(seg.end) UTF8String],
+                                [[seg.text stringByTrimmingCharactersInSet:
+                                    [NSCharacterSet whitespaceCharacterSet]] UTF8String]);
+                        }
+                    }
+                    if (progressActive) {
+                        // Advance the shared counter; the timer will pick it up
+                        // on its next tick. Also render immediately so the jump
+                        // doesn't wait for the next tick.
+                        lastProcessedSec = seg.end;
+                        dispatch_async(progressQueue, ^{
+                            renderProgress(lastProcessedSec, progressTotal, progressStart);
+                        });
+                    }
                 };
             }
 
@@ -768,6 +905,28 @@ int main(int argc, const char *argv[]) {
                                       segmentHandler:segHandler
                                                 info:&info
                                                error:&transcribeError];
+            }
+
+            // Finalize the progress line with a newline so subsequent output
+            // (error messages, verbose info, actual transcription) isn't
+            // overwritten by lingering \r behavior.
+            if (progressActive) {
+                // Stop the ticker and drain any pending renders before the
+                // final line, so the timer can't race with our completion draw.
+                if (progressTimer) {
+                    dispatch_source_cancel(progressTimer);
+                    dispatch_sync(progressQueue, ^{ /* barrier */ });
+                    dispatch_release(progressTimer);
+                    progressTimer = NULL;
+                }
+                if (segments) {
+                    renderProgress(progressTotal, progressTotal, progressStart);
+                }
+                fprintf(stderr, "\n");
+                if (progressQueue) {
+                    dispatch_release(progressQueue);
+                    progressQueue = NULL;
+                }
             }
 
             if (!segments) {

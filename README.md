@@ -115,7 +115,8 @@ Options:
   --no-condition-on-previous-text    Disable conditioning on previous text
   --temperature <t1,t2,...>          Fallback temperatures (default: 0.0,0.6)
   --json                             Shorthand for --output-format json
-  --verbose                          Show progress and timing info on stderr
+  --verbose                          Show per-segment output and timing on stderr
+  --progress                         Show a live progress bar on stderr (TTY only)
   --list-models                      List available model aliases
   --download                         Download model without transcribing
   -                                  Read audio from stdin (WAV format)

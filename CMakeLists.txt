@@ -91,6 +91,7 @@ target_link_libraries(mw_cli
         MetalWhisper
         ${FOUNDATION_FRAMEWORK}
         ${AVFOUNDATION_FRAMEWORK}
+        ${COREMEDIA_FRAMEWORK}
 )
 target_compile_options(mw_cli PRIVATE -fno-objc-arc)
 set_target_properties(mw_cli PROPERTIES

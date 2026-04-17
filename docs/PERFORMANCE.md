@@ -192,6 +192,6 @@ is only needed for extremely challenging audio.
    ffmpeg -i video.mkv -ar 16000 -ac 1 -f wav - | metalwhisper --model turbo -
    ```
 
-6. **Monitor with --verbose.** The `--verbose` flag prints timing information to stderr, useful for profiling.
+6. **Monitor with --verbose or --progress.** `--verbose` prints each segment with timestamps to stderr as it's produced — useful for profiling and spot-checking long-form output. `--progress` draws a live progress bar with percentage, realtime multiplier, and ETA — best for interactive use. Both compose: `metalwhisper long.mp3 --model turbo --verbose --progress` shows segments as they arrive while keeping a live bar at the bottom.
 
 7. **Use SRT/VTT output for subtitles.** The built-in formatter handles timestamp formatting correctly; no need to post-process JSON.

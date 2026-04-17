@@ -92,7 +92,14 @@ log probability, the next temperature is tried. Default: 0.0,0.2,0.4,0.6,0.8,1.0
 Shorthand for \fB\-\-output\-format json\fR.
 .TP
 \fB\-\-verbose\fR
-Print progress, timing, and diagnostic information to stderr.
+Print per-segment output and timing information to stderr as each segment is
+produced. Composes with \fB\-\-progress\fR.
+.TP
+\fB\-\-progress\fR
+Display a live progress bar on stderr showing percentage, audio processed vs
+total, realtime multiplier, wall-clock elapsed, and estimated time remaining.
+Updates every 200 ms. Automatically suppressed when stderr is not a TTY, so
+it is safe to use with pipes, file redirection, and CI logs.
 .TP
 \fB\-\-list\-models\fR
 List all available model aliases and their HuggingFace repo IDs, then list
