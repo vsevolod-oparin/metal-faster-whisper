@@ -1,6 +1,11 @@
 #!/bin/bash
 # Build a release tarball for MetalWhisper
-# Run from project root: ./scripts/build_release.sh
+# Run from project root: ./scripts/build_release.sh [--version X.Y.Z]
+#
+# Version detection (in order of precedence):
+#   1. --version X.Y.Z argument
+#   2. Parsed from src/MWConstants.h MW_VERSION_STRING
+#   3. Default "0.2.1"
 #
 # Output: build/metalwhisper-{VERSION}-macos-arm64.tar.gz
 
@@ -8,7 +13,22 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$PROJECT_DIR/build"
-VERSION="0.2.0"
+
+VERSION=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --version) VERSION="$2"; shift 2 ;;
+        *) echo "Unknown arg: $1"; exit 1 ;;
+    esac
+done
+
+if [ -z "$VERSION" ]; then
+    # Try MWConstants.h
+    VERSION=$(grep -E '#define MW_VERSION_STRING' "$PROJECT_DIR/src/MWConstants.h" 2>/dev/null \
+              | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | head -1)
+fi
+VERSION="${VERSION:-0.2.1}"
+
 RELEASE_NAME="metalwhisper-${VERSION}-macos-arm64"
 STAGING="$BUILD_DIR/$RELEASE_NAME"
 
@@ -47,10 +67,10 @@ mkdir -p "$STAGING/models"
 cp "$BUILD_DIR/metalwhisper" "$STAGING/bin/"
 
 # MetalWhisper dylib (with versioned symlinks)
-cp "$BUILD_DIR/libMetalWhisper.0.2.0.dylib" "$STAGING/lib/"
+cp "$BUILD_DIR/libMetalWhisper.0.2.1.dylib" "$STAGING/lib/"
 cd "$STAGING/lib"
-ln -sf "libMetalWhisper.0.2.0.dylib" "libMetalWhisper.0.dylib"
-ln -sf "libMetalWhisper.0.2.0.dylib" "libMetalWhisper.dylib"
+ln -sf "libMetalWhisper.0.2.1.dylib" "libMetalWhisper.0.dylib"
+ln -sf "libMetalWhisper.0.2.1.dylib" "libMetalWhisper.dylib"
 cd "$BUILD_DIR"
 
 # CTranslate2 dylib
@@ -95,7 +115,7 @@ echo "Fixing rpaths..."
 install_name_tool -add_rpath "@executable_path/../lib" "$STAGING/bin/metalwhisper" 2>/dev/null || true
 
 # MetalWhisper dylib: look for CT2 and ORT in same directory
-install_name_tool -add_rpath "@loader_path" "$STAGING/lib/libMetalWhisper.0.2.0.dylib" 2>/dev/null || true
+install_name_tool -add_rpath "@loader_path" "$STAGING/lib/libMetalWhisper.0.2.1.dylib" 2>/dev/null || true
 
 # ── Step 6: Create README ────────────────────────────────────────────────────
 

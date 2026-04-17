@@ -63,9 +63,9 @@ cat > "$FRAMEWORK_DIR/Versions/A/Resources/Info.plist" << EOF
     <key>CFBundleName</key>
     <string>MetalWhisper</string>
     <key>CFBundleVersion</key>
-    <string>0.2.0</string>
+    <string>0.2.1</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.0</string>
+    <string>0.2.1</string>
     <key>CFBundlePackageType</key>
     <string>FMWK</string>
     <key>CFBundleExecutable</key>
