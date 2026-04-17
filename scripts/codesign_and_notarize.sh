@@ -159,7 +159,7 @@ sign_binary "$RELEASE_DIR/lib/libonnxruntime.1.21.0.dylib" "libonnxruntime.1.21.
 sign_binary "$RELEASE_DIR/lib/libctranslate2.mps.4.7.1.dylib" "libctranslate2.mps.4.7.1.dylib" no
 
 # MetalWhisper dylib (needs entitlements for Metal JIT + loading third-party libs)
-sign_binary "$RELEASE_DIR/lib/libMetalWhisper.0.1.0.dylib" "libMetalWhisper.0.1.0.dylib" yes
+sign_binary "$RELEASE_DIR/lib/libMetalWhisper.0.2.0.dylib" "libMetalWhisper.0.2.0.dylib" yes
 
 # ── Step 2: Sign CLI binary ─────────────────────────────────────────────────
 
@@ -208,7 +208,7 @@ verify_binary() {
 
 verify_binary "$RELEASE_DIR/lib/libonnxruntime.1.21.0.dylib" "libonnxruntime"
 verify_binary "$RELEASE_DIR/lib/libctranslate2.mps.4.7.1.dylib" "libctranslate2"
-verify_binary "$RELEASE_DIR/lib/libMetalWhisper.0.1.0.dylib" "libMetalWhisper"
+verify_binary "$RELEASE_DIR/lib/libMetalWhisper.0.2.0.dylib" "libMetalWhisper"
 verify_binary "$RELEASE_DIR/bin/metalwhisper" "metalwhisper"
 verify_binary "$RELEASE_DIR/MetalWhisper.framework" "MetalWhisper.framework"
 

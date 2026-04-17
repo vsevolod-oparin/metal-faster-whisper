@@ -20,7 +20,7 @@ echo "=== Building xcframeworks for SPM ==="
 
 # ── Step 1: Ensure the library and framework are built ─────────────────────
 
-if [ ! -f "$BUILD_DIR/libMetalWhisper.0.1.0.dylib" ]; then
+if [ ! -f "$BUILD_DIR/libMetalWhisper.0.2.0.dylib" ]; then
     echo "Building MetalWhisper..."
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
@@ -70,7 +70,7 @@ MW_FW="$MW_STAGING/MetalWhisper.framework"
 MW_VER="$MW_FW/Versions/A"
 
 make_versioned_framework "$MW_FW" "MetalWhisper" \
-    "$BUILD_DIR/libMetalWhisper.0.1.0.dylib"
+    "$BUILD_DIR/libMetalWhisper.0.2.0.dylib"
 
 # Modules dir (for module map)
 mkdir -p "$MW_VER/Modules"
@@ -114,9 +114,9 @@ cat > "$MW_VER/Resources/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>com.metalwhisper.MetalWhisper</string>
     <key>CFBundleVersion</key>
-    <string>0.1.0</string>
+    <string>0.2.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.2.0</string>
     <key>CFBundlePackageType</key>
     <string>FMWK</string>
     <key>CFBundleSupportedPlatforms</key>

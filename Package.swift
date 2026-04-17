@@ -15,18 +15,18 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "MetalWhisper",
-            url: "https://github.com/vsevolod-oparin/metal-faster-whisper/releases/download/v0.1.0/MetalWhisper.xcframework.zip",
-            checksum: "17e954d22c15542bf0d1a777f78e153f93a4ecc3dd46d0ff590e9a87778d172e"
+            url: "https://github.com/vsevolod-oparin/metal-faster-whisper/releases/download/v0.2.0/MetalWhisper.xcframework.zip",
+            checksum: "0432730c6b52bde4f638142080b332753044e12e7484e42cf20f2938349a6a75"
         ),
         .binaryTarget(
             name: "CTranslate2",
-            url: "https://github.com/vsevolod-oparin/metal-faster-whisper/releases/download/v0.1.0/CTranslate2.xcframework.zip",
-            checksum: "b26778c69e15bb69f85dafc449f13ecbb01a035b9b8c5ffce4d43cd54f753e1b"
+            url: "https://github.com/vsevolod-oparin/metal-faster-whisper/releases/download/v0.2.0/CTranslate2.xcframework.zip",
+            checksum: "d22045c3945de202ee228033c7aadb94383c1e0ba4e5a45a8b61c17e189f2fbc"
         ),
         .binaryTarget(
             name: "OnnxRuntime",
-            url: "https://github.com/vsevolod-oparin/metal-faster-whisper/releases/download/v0.1.0/OnnxRuntime.xcframework.zip",
-            checksum: "3e177cc32d245db4282feb55f7f0399dd3f9d3ac71453c8dd222a8e9ba9a5277"
+            url: "https://github.com/vsevolod-oparin/metal-faster-whisper/releases/download/v0.2.0/OnnxRuntime.xcframework.zip",
+            checksum: "58da43072dc8b81324e79e9a7c9d944b3d3fb5e3923e16737074c83508144db9"
         ),
     ]
 )

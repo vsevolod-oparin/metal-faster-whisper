@@ -6,7 +6,7 @@
 #   ./scripts/build_spm_release.sh [--repo OWNER/REPO] [--version VERSION]
 #
 # Examples:
-#   ./scripts/build_spm_release.sh --repo vsevolod-oparin/metal-faster-whisper --version 0.1.0
+#   ./scripts/build_spm_release.sh --repo vsevolod-oparin/metal-faster-whisper --version 0.2.0
 #   ./scripts/build_spm_release.sh   # prints Package.swift with placeholder URLs
 #
 # Output:
@@ -26,7 +26,7 @@ RELEASE_DIR="$BUILD_DIR/spm-release"
 # ── Parse arguments ────────────────────────────────────────────────────────
 
 REPO=""
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in

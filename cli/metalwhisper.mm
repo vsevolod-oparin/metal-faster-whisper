@@ -18,7 +18,7 @@
 
 // ── Version ────────────────────────────────────────────────────────────────
 
-static const char *kVersion = "0.1.0";
+static const char *kVersion = "0.2.0";
 
 // ── Signal handling for temp file cleanup ─────────────────────────────────
 
