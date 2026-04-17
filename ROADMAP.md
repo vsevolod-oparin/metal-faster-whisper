@@ -609,12 +609,12 @@ metalwhisper benchmark.wav --model large-v3 --compute-type float16 2>&1 | grep R
 
 **Deferred (future work):**
 - [x] M12.4: Package.swift (SPM) — binary distribution via xcframeworks. `scripts/build_xcframeworks.sh` creates MetalWhisper/CTranslate2/OnnxRuntime xcframeworks. Consumer: `.package(path:)` → `import MetalWhisper`
-- [ ] M12.5: Homebrew formula
-- [ ] M12.6: CI/CD (GitHub Actions)
-- [ ] M12.10: Code signing + notarization — requires Apple Developer account
+- [ ] M12.5: Homebrew formula — unblocked by M12.10 (signed binary available)
+- [ ] M12.6: CI/CD (GitHub Actions) — can now include signed releases via secrets
+- [x] M12.10: Code signing + notarization — `scripts/codesign_and_notarize.sh` with hardened runtime, entitlements, notarytool integration. Supports keychain profile, API key, and Apple ID auth. Integrated into `build_release.sh` and `build_xcframeworks.sh`. First notarized release: v0.1.0 (2026-04-17, submission d332c213)
 - [x] M12.11: Model unload/reload API — `unloadModel` frees GPU memory, `reloadModel:` restores from disk, `isModelLoaded` property. Guards on all transcription entry points
 
-**Exit criteria:** Documentation complete. Example app done. SPM, Homebrew, CI/CD, signing deferred.
+**Exit criteria:** Documentation complete. Example app done. SPM done. Signing + notarization done. Homebrew and CI/CD remaining.
 
 ---
 

@@ -15,9 +15,9 @@ echo ""
 
 CT2_DIR="$THIRD_PARTY/ctranslate2-mps"
 CT2_VERSION="4.7.1"
-CT2_DYLIB_URL="https://github.com/vsevolod-oparin/CTranslate2/releases/download/metal-dev-0.3/libctranslate2.mps.4.7.1.dylib"
-CT2_STATIC_URL="https://github.com/vsevolod-oparin/CTranslate2/releases/download/metal-dev-0.3/libctranslate2.mps.a"
-CT2_HEADERS_URL="https://github.com/vsevolod-oparin/CTranslate2/archive/refs/heads/metal-dev.tar.gz"
+CT2_DYLIB_URL="https://github.com/vsevolod-oparin/CTranslate2-Synth/releases/download/metal-dev-0.3/libctranslate2.mps.4.7.1.dylib"
+CT2_STATIC_URL="https://github.com/vsevolod-oparin/CTranslate2-Synth/releases/download/metal-dev-0.3/libctranslate2.mps.a"
+CT2_HEADERS_URL="https://github.com/vsevolod-oparin/CTranslate2-Synth/archive/refs/heads/master.tar.gz"
 
 if [ -f "$CT2_DIR/lib/libctranslate2.dylib" ]; then
     echo "[CT2] Already installed at $CT2_DIR"
@@ -50,7 +50,7 @@ else
     else
         echo "  Downloading headers from GitHub..."
         TEMP_TAR=$(mktemp)
-        curl -L -o "$TEMP_TAR" "https://api.github.com/repos/vsevolod-oparin/CTranslate2/tarball/metal-dev"
+        curl -L -o "$TEMP_TAR" "https://api.github.com/repos/vsevolod-oparin/CTranslate2-Synth/tarball/master"
         tar xzf "$TEMP_TAR" -C /tmp
         EXTRACTED=$(ls -d /tmp/vsevolod-oparin-CTranslate2-* 2>/dev/null | head -1)
         if [ -d "$EXTRACTED/include/ctranslate2" ]; then

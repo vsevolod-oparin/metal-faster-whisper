@@ -152,7 +152,23 @@ swiftc -F /path/to/this/directory -framework MetalWhisper my_app.swift
 - Apple Silicon (M1/M2/M3/M4)
 EOF
 
-# ── Step 7: Create tarball ───────────────────────────────────────────────────
+# ── Step 7: Code signing (if identity is available) ─────────────────────────
+
+if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+    echo ""
+    echo "Code signing identity found — signing release..."
+    SIGN_ARGS=()
+    if [ "${NOTARIZE:-}" = "0" ] || [ "${SIGN_ONLY:-}" = "1" ]; then
+        SIGN_ARGS+=(--sign-only)
+    fi
+    "$PROJECT_DIR/scripts/codesign_and_notarize.sh" "${SIGN_ARGS[@]}" "$STAGING"
+else
+    echo ""
+    echo "CODESIGN_IDENTITY not set — skipping code signing."
+    echo "To sign, set: export CODESIGN_IDENTITY=\"Developer ID Application: Your Name (TEAMID)\""
+fi
+
+# ── Step 8: Create tarball ───────────────────────────────────────────────────
 
 echo "Creating tarball..."
 cd "$BUILD_DIR"

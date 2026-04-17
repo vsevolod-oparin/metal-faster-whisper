@@ -237,6 +237,36 @@ xcodebuild -create-xcframework \
 rm -rf "$ORT_STAGING"
 echo "  ✓ OnnxRuntime.xcframework"
 
+# ── Code signing (if identity is available) ──────────────────────────────────
+
+if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+    ENTITLEMENTS="$PROJECT_DIR/scripts/entitlements.plist"
+    echo ""
+    echo "Signing xcframeworks..."
+    for xcf in "$XCF_DIR"/*.xcframework; do
+        xcf_name=$(basename "$xcf")
+        codesign --force --options runtime --timestamp \
+            --sign "$CODESIGN_IDENTITY" \
+            --entitlements "$ENTITLEMENTS" \
+            "$xcf"
+        echo "  SIGNED: $xcf_name"
+    done
+
+    echo "Verifying..."
+    for xcf in "$XCF_DIR"/*.xcframework; do
+        xcf_name=$(basename "$xcf")
+        if codesign --verify --deep --strict "$xcf" 2>/dev/null; then
+            echo "  OK: $xcf_name"
+        else
+            echo "  FAIL: $xcf_name"
+            exit 1
+        fi
+    done
+else
+    echo ""
+    echo "CODESIGN_IDENTITY not set — xcframeworks are unsigned."
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
