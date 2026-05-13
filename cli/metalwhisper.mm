@@ -18,7 +18,7 @@
 
 // ── Version ────────────────────────────────────────────────────────────────
 
-static const char *kVersion = "0.2.2";
+static const char *kVersion = "0.2.3";
 
 // ── Signal handling for temp file cleanup ─────────────────────────────────
 
@@ -370,11 +370,12 @@ static void printUsage(void) {
         "  --beam-size <n>               Beam size (default: 6)\n"
         "  --word-timestamps             Enable word-level timestamps\n"
         "  --vad-filter                  Enable voice activity detection\n"
-        "  --vad-model <path>            Path to Silero VAD ONNX model\n"
+        "  --vad-model <path>            Path to Silero VAD ONNX model (auto-resolved)\n"
         "  --initial-prompt <text>       Initial prompt text\n"
         "  --hotwords <text>             Hotwords to bias toward\n"
+        "  --condition-on-previous-text   Enable conditioning on previous text\n"
         "  --no-condition-on-previous-text  Disable conditioning on previous text\n"
-        "                                (default: conditioning is ON)\n"
+        "                                (default: disabled)\n"
         "  --temperature <t1,t2,...>     Temperature(s) for fallback\n"
         "                                (default: 0.0,0.6)\n"
         "  --json                        Shorthand for --output-format json\n"
@@ -460,7 +461,7 @@ static BOOL parseArgs(int argc, const char *argv[], CLIOptions *opts) {
     opts->vadModelPath = nil;
     opts->initialPrompt = nil;
     opts->hotwords = nil;
-    opts->conditionOnPreviousText = YES;
+    opts->conditionOnPreviousText = NO;
     opts->temperatures = @[@(0.0f), @(0.6f)];
     opts->verbose = NO;
     opts->progress = NO;
@@ -664,10 +665,33 @@ int main(int argc, const char *argv[]) {
             // Continue anyway — the transcriber may handle it or auto-detect will override
         }
 
-        // Validate --vad-filter requires --vad-model
+        // VAD model path: auto-resolve from framework bundle or known locations
         if (opts.vadFilter && !opts.vadModelPath) {
-            fprintf(stderr, "Error: --vad-filter requires --vad-model <path>\n");
-            return 1;
+            // Try framework bundle first
+            NSBundle *fwBundle = [NSBundle bundleForClass:[MWTranscriber class]];
+            NSString *fwVadPath = [fwBundle pathForResource:@"silero_vad_v6" ofType:@"onnx"];
+            if (fwVadPath) {
+                opts.vadModelPath = fwVadPath;
+            } else {
+                // Try brew/manual install locations
+                NSArray *candidates = @[
+                    @"/opt/homebrew/opt/metalwhisper/share/metalwhisper/models/silero_vad_v6.onnx",
+                    @"/opt/homebrew/share/metalwhisper/models/silero_vad_v6.onnx",
+                    @"/usr/local/share/metalwhisper/models/silero_vad_v6.onnx",
+                ];
+                for (NSString *candidate in candidates) {
+                    if ([[NSFileManager defaultManager] fileExistsAtPath:candidate]) {
+                        opts.vadModelPath = candidate;
+                        break;
+                    }
+                }
+            }
+            if (!opts.vadModelPath) {
+                fprintf(stderr, "Warning: --vad-filter specified but silero_vad_v6.onnx not found.\n");
+                fprintf(stderr, "  VAD will be disabled. Download from:\n");
+                fprintf(stderr, "  https://github.com/snakers4/silero-vad/raw/master/files/silero_vad.onnx\n");
+                opts.vadFilter = NO;
+            }
         }
 
         // Handle stdin

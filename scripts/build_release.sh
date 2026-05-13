@@ -67,10 +67,10 @@ mkdir -p "$STAGING/models"
 cp "$BUILD_DIR/metalwhisper" "$STAGING/bin/"
 
 # MetalWhisper dylib (with versioned symlinks)
-cp "$BUILD_DIR/libMetalWhisper.0.2.2.dylib" "$STAGING/lib/"
+cp "$BUILD_DIR/libMetalWhisper.${VERSION}.dylib" "$STAGING/lib/"
 cd "$STAGING/lib"
-ln -sf "libMetalWhisper.0.2.2.dylib" "libMetalWhisper.0.dylib"
-ln -sf "libMetalWhisper.0.2.2.dylib" "libMetalWhisper.dylib"
+ln -sf "libMetalWhisper.${VERSION}.dylib" "libMetalWhisper.0.dylib"
+ln -sf "libMetalWhisper.${VERSION}.dylib" "libMetalWhisper.dylib"
 cd "$BUILD_DIR"
 
 # CTranslate2 dylib
@@ -115,7 +115,7 @@ echo "Fixing rpaths..."
 install_name_tool -add_rpath "@executable_path/../lib" "$STAGING/bin/metalwhisper" 2>/dev/null || true
 
 # MetalWhisper dylib: look for CT2 and ORT in same directory
-install_name_tool -add_rpath "@loader_path" "$STAGING/lib/libMetalWhisper.0.2.2.dylib" 2>/dev/null || true
+install_name_tool -add_rpath "@loader_path" "$STAGING/lib/libMetalWhisper.${VERSION}.dylib" 2>/dev/null || true
 
 # ── Step 6: Create README ────────────────────────────────────────────────────
 
